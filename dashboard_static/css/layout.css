@@ -1,0 +1,168 @@
+/* ════════════════════════════════════════
+   layout.css — 布局：header、container、grid、响应式
+   ════════════════════════════════════════ */
+
+/* ── 导航栏 ── */
+.nav-bar {
+  background: var(--card-glass);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--sp-6);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  box-shadow: 0 1px 12px var(--nav-shadow);
+}
+.nav-left { display: flex; align-items: center; gap: var(--sp-6); }
+.nav-logo { display: flex; align-items: center; gap: var(--sp-3); text-decoration: none; }
+.nav-logo .logo-icon { /* 复用全局样式 */ }
+.nav-logo h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.3px;
+}
+.nav-links { display: flex; gap: 4px; }
+.nav-link {
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: all var(--transition);
+  position: relative;
+}
+.nav-link:hover {
+  color: var(--text);
+  background: var(--card-hover);
+}
+.nav-link.active {
+  color: var(--accent-light);
+  background: var(--accent-soft);
+}
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 2px;
+  background: var(--grad-accent);
+  border-radius: 1px;
+}
+.nav-right { display: flex; align-items: center; gap: var(--sp-3); }
+
+/* ── 主题切换按钮 ── */
+.theme-toggle-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card-hover);
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.theme-toggle-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: rotate(15deg);
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.theme-toggle-btn:active {
+  transform: scale(0.92);
+}
+
+/* ── logo 图标 ── */
+.logo-icon {
+  width: 36px; height: 36px;
+  background: var(--grad-accent);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 3px 10px var(--accent-glow);
+  transition: transform var(--transition-spring);
+}
+.nav-logo:hover .logo-icon { transform: scale(1.08) rotate(-5deg); }
+
+/* ── 状态徽章 ── */
+.badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.badge-online {
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid rgba(0, 217, 163, 0.25);
+}
+.badge-busy {
+  background: rgba(253, 203, 110, 0.12);
+  color: var(--orange);
+  border: 1px solid rgba(253, 203, 110, 0.25);
+}
+
+/* ── 布局 ── */
+.container { max-width: 1200px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-7); }
+.grid { display: grid; gap: var(--sp-4); }
+.grid-stats { grid-template-columns: repeat(4, 1fr); }
+.grid-main { grid-template-columns: 3fr 2fr; }
+@media (max-width: 900px) {
+  .grid-stats { grid-template-columns: repeat(2, 1fr); }
+  .grid-main { grid-template-columns: 1fr; }
+  .nav-links { gap: 0; }
+  .nav-link { padding: 7px 10px; font-size: 12px; }
+}
+@media (max-width: 600px) {
+  .nav-left { gap: var(--sp-4); }
+  .nav-logo h1 { display: none; }
+  .container { padding: var(--sp-4) var(--sp-3) var(--sp-6); }
+}
+
+/* ── 区块标题 ── */
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: var(--sp-6) 0 var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--text-bright);
+}
+.section-title .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ── 页面头部 ── */
+.page-header {
+  margin-bottom: var(--sp-5);
+}
+.page-header .section-title {
+  margin-top: 0;
+  margin-bottom: var(--sp-2);
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}

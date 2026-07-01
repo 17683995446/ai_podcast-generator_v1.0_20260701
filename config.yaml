@@ -1,0 +1,97 @@
+# ============================================================
+# GitHub 播客生成工具 - 配置文件（硅基流动 SiliconFlow 配置）
+# ============================================================
+
+# 项目发现配置
+discovery:
+  # RSSHub 实例（公共实例免部署，自托管更稳定）
+  rsshub_base_url: "https://rsshub.app"
+  # GitHub Trending 路由：daily / weekly / monthly
+  trending_since: "daily"
+  # 按语言过滤（留空则全部）：python, javascript, go, rust, typescript...
+  language: ""
+  # 备用 Trending API（huchenme/github-trending-api 在线版）
+  trending_api_url: "https://ghapi.huchen.dev/repositories"
+  # 每期选取项目数量
+  max_projects: 3
+  # 最低 Star 数阈值（过滤小项目）
+  min_stars: 100
+  # 关键词白名单（留空则不过滤，匹配 repo 名/description/topics）
+  keywords: []
+  # 关键词黑名单
+  exclude_keywords: ["awesome", "interview", "leetcode"]
+
+# 内容抓取配置
+crawler:
+  # Jina Reader：免费将网页转为干净 Markdown
+  jina_reader_url: "https://r.jina.ai"
+  # README 最大字符数（避免 token 超限）
+  max_readme_chars: 8000
+  # 请求超时（秒）
+  timeout: 30
+
+# LLM 脚本生成配置
+llm:
+  # 硅基流动 SiliconFlow（OpenAI 兼容 API）
+  base_url: "https://api.siliconflow.cn/v1"
+  model: "Qwen/Qwen3.5-9B"        # 永久免费（9B 参数）
+  # 关闭 thinking 模式（Qwen3.5 系列必须，否则 token 全用在思考上）
+  enable_thinking: false
+  # 备选免费模型：
+  #   Qwen/Qwen3.5-4B（更快）、tencent/Hunyuan-MT-7B
+  # 备选付费模型：
+  #   deepseek-ai/DeepSeek-V4-Flash（$0.13/$0.28）
+  #   Qwen/Qwen3.6-35B-A3B（$0.2/$1.6）
+  temperature: 0.8
+  max_tokens: 4000
+  timeout: 120
+
+# TTS 语音合成配置
+tts:
+  # 后端选择：siliconflow / dashscope / mock
+  provider: "siliconflow"
+  # 硅基流动 SiliconFlow
+  base_url: "https://api.siliconflow.cn/v1"
+  model: "FunAudioLLM/CosyVoice2-0.5B"
+  # 输出音频格式：wav / mp3 / pcm / opus
+  response_format: "wav"
+  # 系统预置音色（8种）：
+  #   男声: alex(沉稳) benjamin(低沉) charles(磁性) david(欢快)
+  #   女声: anna(沉稳) bella(激情) claire(温柔) diana(欢快)
+  # 角色音色映射（speaker_key -> voice_name）
+  voice_mapping:
+    host: "alex"                  # 沉稳男声 - 主持人
+    guest: "anna"                 # 沉稳女声 - 嘉宾
+  # 采样率（pyloudnorm 用）
+  sample_rate: 24000
+
+# 音频后期处理
+audio:
+  # 段落间静音时长（毫秒）
+  segment_silence_ms: 400
+  # 段落内句子间静音（毫秒）
+  sentence_silence_ms: 150
+  # 目标响度（LUFS，播客标准 -16）
+  target_lufs: -16.0
+  # 输出格式
+  output_format: "mp3"
+  output_bitrate: "192k"
+  # 背景音乐路径（可选，留空则不加）
+  bgm_path: ""
+
+# RSS 播客发布
+publish:
+  # 节目封面图路径（相对项目根，3000x3000 推荐）
+  cover_art: "assets/cover.png"
+  # 节目分类（Apple Podcasts 类别）
+  category: "Technology"
+  # 节目语言
+  language: "zh-cn"
+  # 是否显式内容
+  explicit: false
+
+# 输出目录
+output:
+  episodes_dir: "output/episodes"
+  feed_path: "output/feed.xml"
+  scripts_dir: "output/scripts"

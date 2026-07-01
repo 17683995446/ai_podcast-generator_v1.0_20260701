@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  github-podcast:
+    build: .
+    container_name: github-podcast-tool
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./output:/app/output
+      - ./config.yaml:/app/config.yaml
+      - ./prompts:/app/prompts
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

@@ -1,0 +1,42 @@
+/* ════════════════════════════════════════
+   dashboard.css — 仪表盘页面专用样式
+   ════════════════════════════════════════ */
+
+/* 统计卡渐变边框装饰 */
+.grid-stats .card:nth-child(1)::before { background: var(--grad-accent); }
+.grid-stats .card:nth-child(2)::before { background: var(--grad-blue); }
+.grid-stats .card:nth-child(3)::before { background: var(--grad-green); }
+.grid-stats .card:nth-child(4)::before { background: var(--grad-orange); }
+
+/* 主网格布局：黄金比例 3:2 */
+.grid-main {
+  grid-template-columns: 3fr 2fr;
+  align-items: stretch;
+  margin-top: var(--sp-4);
+}
+
+/* 日志卡片填满右列高度 */
+.log-card {
+  display: flex;
+  flex-direction: column;
+}
+.log-card .log-box {
+  flex: 1;
+}
+
+/* 当日志正在输出时的微光效果 */
+.card:has(.log-box .log-line:not(.log-empty)) {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* 最近节目区域 */
+#episodeList .episode-item:last-child {
+  margin-bottom: 0;
+}
+
+/* 响应式 */
+@media (max-width: 900px) {
+  .grid-main { grid-template-columns: 1fr; }
+  .log-card .log-box { min-height: 200px; }
+}

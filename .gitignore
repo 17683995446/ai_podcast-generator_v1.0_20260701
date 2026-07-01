@@ -1,0 +1,29 @@
+# 环境变量（包含 API Key 等敏感信息）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+*.pyc
+
+# Flask/Dashboard 编译缓存
+dashboard/__pycache__/
+dashboard/routes/__pycache__/
+
+# 输出产物（生成的音频、脚本、分析数据）
+output/
+logs/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

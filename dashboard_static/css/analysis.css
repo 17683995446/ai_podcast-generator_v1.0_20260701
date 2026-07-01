@@ -1,0 +1,488 @@
+/* ════════════════════════════════════════
+   analysis.css — 项目深度分析视图专用样式
+   参考 zread.ai 风格
+   ════════════════════════════════════════ */
+
+.analysis-view {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--surface-code);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  max-height: 600px;
+  overflow-y: auto;
+  display: none;
+}
+.analysis-view.open { display: block; }
+
+/* 单个项目分析卡片 */
+.proj-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s;
+}
+.proj-card:hover { border-color: var(--border-light); }
+.proj-card:last-child { margin-bottom: 0; }
+
+/* 项目标题与一句话概述 */
+.proj-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.proj-icon {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--accent), #a29bfe);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.proj-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.proj-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 14px;
+  padding-left: 38px;
+}
+
+/* 小节标题 */
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 14px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-label .sl-icon { font-size: 13px; }
+
+/* 技术栈芯片标签 */
+.tech-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.tech-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  line-height: 1.4;
+}
+
+/* 段落文本（架构、对比、代码洞察等） */
+.proj-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* 关键模块网格 */
+.module-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 760px) {
+  .module-grid { grid-template-columns: 1fr; }
+}
+.module-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: border-color 0.2s;
+}
+.module-item:hover { border-color: var(--accent); }
+.module-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.module-name .mn-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.module-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* 快速上手代码块 */
+.code-block {
+  background: var(--surface-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--green);
+  overflow-x: auto;
+  white-space: pre;
+}
+.code-block::before {
+  content: "$ ";
+  color: var(--text-dim);
+}
+
+/* 亮点 / 场景列表 */
+.insight-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.insight-list li {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  padding: 4px 0 4px 22px;
+  position: relative;
+}
+.insight-list li::before {
+  content: "✓";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  color: var(--green);
+  font-weight: 700;
+}
+.insight-list.use-cases li::before {
+  content: "▸";
+  color: var(--accent);
+  font-size: 14px;
+}
+
+/* 分隔符（项目间） */
+.proj-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 0;
+}
+
+/* 分析视图标题栏 */
+.analysis-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ════════════════════════════════════════
+   增强可视化组件：Mermaid / 健康面板 / 依赖 / 评分 / 对比
+   ════════════════════════════════════════ */
+
+/* —— Mermaid 架构图容器 —— */
+.mermaid-container {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  overflow-x: auto;
+  margin-bottom: 4px;
+}
+.mermaid-container .mermaid {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.mermaid-container .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* —— 质量评分徽章（标题旁） —— */
+.review-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.review-badge.review-good {
+  background: rgba(0, 184, 148, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(0, 184, 148, 0.4);
+}
+.review-badge.review-mid {
+  background: rgba(253, 203, 110, 0.15);
+  color: var(--orange);
+  border: 1px solid rgba(253, 203, 110, 0.4);
+}
+.review-badge.review-low {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--red);
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+
+/* —— 健康度面板 —— */
+.health-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+.health-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.health-grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+.health-grade-badge.grade-ap { background: #00b894; }
+.health-grade-badge.grade-a  { background: #1abc9c; }
+.health-grade-badge.grade-b  { background: var(--orange); }
+.health-grade-badge.grade-c  { background: #e17055; }
+.health-grade-badge.grade-d  { background: var(--red); }
+.health-grade-badge.grade-f  { background: #b71540; }
+.health-score {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.health-score .hs-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+.health-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.health-metric {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.health-metric:hover { border-color: var(--accent); }
+.health-metric .hm-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.health-metric .hm-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.health-contributors,
+.health-trend {
+  margin-top: 10px;
+}
+.hm-sublabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.contrib-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.contrib-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--card-hover);
+  border: 1px solid var(--border);
+}
+.health-trend-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+}
+.health-narrative-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  font-style: italic;
+}
+
+/* —— 依赖清单 —— */
+.dependency-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dep-tag {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-glow);
+}
+.dep-tag .dep-ver {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+/* —— 跨项目对比 —— */
+.comparison-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.cmp-block { margin-bottom: 14px; }
+.cmp-block:last-child { margin-bottom: 0; }
+.cmp-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.cmp-overlap-tag {
+  background: linear-gradient(135deg, var(--accent), #a29bfe) !important;
+}
+.activity-ranking {
+  list-style: none;
+  counter-reset: rank;
+  padding: 0;
+  margin: 0;
+}
+.activity-ranking li {
+  counter-increment: rank;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.activity-ranking li:last-child { margin-bottom: 0; }
+.activity-ranking li::before {
+  content: counter(rank);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.activity-ranking .rank-name {
+  color: var(--text);
+  font-weight: 600;
+}
+.activity-ranking .rank-score {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--green);
+  font-size: 12px;
+}
+.comparison-verdict {
+  margin-top: 14px;
+  padding: 12px 16px;
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* ═══ 互动问答面板 ═══ */
+.qa-panel { margin-top: 12px; }
+.qa-input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.qa-input {
+  flex: 1; padding: 8px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-2);
+  color: var(--text); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.qa-input:focus { border-color: var(--accent); }
+.qa-input::placeholder { color: var(--text-dim); }
+.qa-submit-btn {
+  padding: 8px 16px; border-radius: 8px; border: none;
+  background: var(--accent); color: #fff;
+  font-size: 13px; cursor: pointer; white-space: nowrap;
+  transition: opacity 0.2s;
+}
+.qa-submit-btn:hover { opacity: 0.85; }
+.qa-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.qa-answer { min-height: 20px; }
+.qa-loading { color: var(--text-dim); font-size: 13px; padding: 8px 0; }
+.qa-error { color: var(--red); font-size: 13px; padding: 8px 0; }
+.qa-answer-text {
+  padding: 12px 16px; border-radius: 8px;
+  background: var(--card-hover);
+  border-left: 3px solid var(--accent);
+  font-size: 13px; line-height: 1.7; color: var(--text);
+}

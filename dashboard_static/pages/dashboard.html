@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>概览 · GitHub 播客工具</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div id="nav-container"></div>
+
+  <div class="container">
+    <!-- ══ Zone 1: 统计概览 ══ -->
+    <div class="grid grid-stats fade-in">
+      <div class="card stat-card">
+        <div class="stat-icon-wrap"><div class="stat-icon">📻</div></div>
+        <div class="stat-body">
+          <div class="stat-label">节目总数</div>
+          <div class="stat-value" id="statEpisodes">—</div>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon-wrap"><div class="stat-icon">⏱️</div></div>
+        <div class="stat-body">
+          <div class="stat-label">总时长</div>
+          <div class="stat-value" id="statDuration">—<span class="stat-unit">min</span></div>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon-wrap"><div class="stat-icon">📝</div></div>
+        <div class="stat-body">
+          <div class="stat-label">总字数</div>
+          <div class="stat-value" id="statChars">—</div>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon-wrap"><div class="stat-icon">💾</div></div>
+        <div class="stat-body">
+          <div class="stat-label">占用空间</div>
+          <div class="stat-value" id="statSize">—<span class="stat-unit">MB</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Zone 2: 生成流水线 ══ -->
+    <div class="pipeline-bar fade-in" style="animation-delay: 0.05s">
+      <div class="pipeline-header">
+        <span class="pipeline-title">生成流水线</span>
+        <span class="pipeline-status" id="taskLabel"></span>
+        <button id="cancelTaskBtn" class="btn-cancel-task" data-action="cancel-task" style="display:none;">⏹ 停止</button>
+      </div>
+      <div class="stepper" id="stepper">
+        <div class="step" data-step="1"><div class="step-dot">1</div><div class="step-label">发现</div></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="2"><div class="step-dot">2</div><div class="step-label">抓取</div></div>
+        <div class="step-line"></div>
+        <div class="step sub" data-step="2.1"><div class="step-dot">●</div><div class="step-label">深提取</div></div>
+        <div class="step-line"></div>
+        <div class="step sub" data-step="2.5"><div class="step-dot">●</div><div class="step-label">分析</div></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="3"><div class="step-dot">3</div><div class="step-label">脚本</div></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="4"><div class="step-dot">4</div><div class="step-label">语音</div></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="5"><div class="step-dot">5</div><div class="step-label">混音</div></div>
+        <div class="step-line"></div>
+        <div class="step" data-step="6"><div class="step-dot">6</div><div class="step-label">发布</div></div>
+      </div>
+    </div>
+
+    <!-- ══ Zone 3: 配置 + 日志（黄金比例 3:2）══ -->
+    <div class="grid grid-main fade-in" style="animation-delay: 0.1s">
+      <!-- 左列：生成配置 -->
+      <div class="card gen-card">
+        <div class="gen-card-header">
+          <span class="section-label">生成播客</span>
+          <p class="gen-desc">选择内容来源和风格，一键生成音频播客</p>
+        </div>
+
+        <!-- 内容来源 -->
+        <div class="config-group">
+          <div class="config-group-label">内容来源</div>
+          <div class="source-tabs">
+            <button class="source-tab active" data-source="auto" data-action="switch-source">🔥 自动发现</button>
+            <button class="source-tab" data-source="repos" data-action="switch-source">📦 指定仓库</button>
+            <button class="source-tab" data-source="topic" data-action="switch-source">🔍 主题搜索</button>
+          </div>
+          <div class="source-input" id="sourceRepos" style="display:none;">
+            <textarea class="text-input" id="repoUrlsInput" rows="3" placeholder="每行一个 GitHub 仓库 URL&#10;https://github.com/microsoft/vscode&#10;https://github.com/facebook/react"></textarea>
+          </div>
+          <div class="source-input" id="sourceTopic" style="display:none;">
+            <input type="text" class="text-input" id="topicInput" placeholder="输入主题关键词，如：machine learning">
+          </div>
+        </div>
+
+        <!-- 播客风格 -->
+        <div class="config-group">
+          <div class="config-group-label">播客风格</div>
+          <div class="style-tabs">
+            <button class="style-tab active" data-style="casual" data-action="switch-style">💬 轻松闲聊</button>
+            <button class="style-tab" data-style="technical" data-action="switch-style">🔧 技术深度</button>
+            <button class="style-tab" data-style="debate" data-action="switch-style">⚡ 辩论对话</button>
+            <button class="style-tab" data-style="interview" data-action="switch-style">🎤 访谈风格</button>
+          </div>
+          <label class="checkbox-wrap longform-toggle">
+            <input type="checkbox" id="longformToggle">
+            <span>长内容模式（25-40 分钟深度播客）</span>
+          </label>
+        </div>
+
+        <!-- 单期生成 -->
+        <div class="gen-action-section">
+          <button class="btn-cta" id="runBtn" data-action="run">
+            <span class="btn-cta-icon">▶</span>
+            <span>生成一期播客</span>
+          </button>
+          <div class="gen-meta-row">
+            <details class="advanced-toggle">
+              <summary>⚙ 高级选项</summary>
+              <div class="advanced-body">
+                <label class="checkbox-wrap"><input type="checkbox" id="runDry"><span>Dry-Run</span></label>
+                <label class="checkbox-wrap"><input type="checkbox" id="runMock"><span>Mock 数据</span></label>
+              </div>
+            </details>
+            <span class="shortcut-hint"><span class="kbd">Ctrl</span>+<span class="kbd">Enter</span></span>
+          </div>
+        </div>
+
+        <!-- 批量生成 -->
+        <div class="gen-action-section secondary">
+          <div class="config-group-label">批量生成</div>
+          <div class="batch-controls">
+            <div class="batch-presets">
+              <button class="btn btn-secondary btn-sm" data-action="set-batch-count" data-count="5">5</button>
+              <button class="btn btn-secondary btn-sm" data-action="set-batch-count" data-count="10">10</button>
+              <button class="btn btn-secondary btn-sm" data-action="set-batch-count" data-count="20">20</button>
+              <button class="btn btn-secondary btn-sm" data-action="set-batch-count" data-count="50">50</button>
+              <div class="field-inline">
+                <input type="number" class="input-sm" id="batchCount" value="5" min="1" max="100">
+                <span class="batch-unit">期</span>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="batchBtn" data-action="batch">⚡ 开始批量生成</button>
+          </div>
+          <details class="advanced-toggle">
+            <summary>⚙ 高级选项</summary>
+            <div class="advanced-body">
+              <label class="checkbox-wrap"><input type="checkbox" id="batchDry"><span>Dry-Run</span></label>
+              <label class="checkbox-wrap"><input type="checkbox" id="batchMock"><span>Mock 数据</span></label>
+              <label class="checkbox-wrap"><input type="checkbox" id="batchResume"><span>断点续跑</span></label>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- 右列：运行日志 -->
+      <div class="card log-card">
+        <div class="card-title">
+          <span>运行日志</span>
+          <span class="log-status-dot" id="logStatusDot"></span>
+        </div>
+        <div class="log-box" id="logBox">
+          <div class="log-empty">暂无日志，点击「生成」按钮开始...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Zone 4: 最近节目（全宽）══ -->
+    <div class="section-title fade-in" style="animation-delay: 0.15s">
+      <span class="dot"></span>最近节目
+      <a class="link" href="/episodes" style="margin-left:auto; font-size:13px;">查看全部 →</a>
+    </div>
+    <div id="episodeList" class="fade-in" style="animation-delay: 0.2s"></div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/pages/dashboard.js"></script>
+</body>
+</html>

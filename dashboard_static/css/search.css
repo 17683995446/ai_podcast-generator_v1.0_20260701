@@ -1,0 +1,248 @@
+/* ════════════════════════════════════════
+   search.css — 搜索页样式
+   ════════════════════════════════════════ */
+
+/* ── 搜索框卡片 ── */
+.search-bar-card {
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-icon {
+  font-size: 20px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 40px 12px 16px;
+  font-size: 15px;
+  color: var(--text);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--text-mute);
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--card-hover);
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+
+.search-clear-btn:hover {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+/* ── 热门搜索建议 ── */
+.search-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.suggestion-label {
+  font-size: 12px;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+
+.suggestion-chip {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.suggestion-chip:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+
+/* ── 空状态 / 加载 / 错误 ── */
+.search-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+}
+
+.search-empty-state .icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.search-empty-state .title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.search-empty-state .desc {
+  font-size: 13px;
+  max-width: 400px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.search-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 结果计数头 ── */
+.search-results-header {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  padding-left: 4px;
+}
+
+.search-results-header strong {
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+/* ── 搜索结果卡片 ── */
+.search-result-item {
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  transition: border-color var(--transition), transform var(--transition);
+}
+
+.search-result-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.search-result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.search-result-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-result-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.search-result-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── 命中标签 ── */
+.match-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 12px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* ── 元信息 ── */
+.search-result-meta {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+/* ── 仓库列表 ── */
+.search-result-repos {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+/* ── 脚本命中片段 ── */
+.search-result-snippet {
+  font-size: 13px;
+  color: var(--surface-code-text);
+  background: var(--surface-code);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 8px;
+  line-height: 1.6;
+  border-left: 3px solid var(--green);
+}
+
+/* ── 关键词高亮 ── */
+.search-highlight {
+  background: var(--accent-soft);
+  color: var(--accent-light);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 768px) {
+  .search-result-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .search-result-actions {
+    width: 100%;
+  }
+
+  .search-result-actions .btn {
+    flex: 1;
+    text-align: center;
+  }
+}

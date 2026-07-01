@@ -1,0 +1,61 @@
+# GitHub Actions 每日自动生成播客
+# 每天 UTC 01:00（北京时间 09:00）执行
+name: Daily Podcast Generation
+
+on:
+  schedule:
+    - cron: "0 1 * * *"        # 每天 UTC 01:00 = 北京 09:00
+  workflow_dispatch:            # 手动触发
+
+jobs:
+  generate-podcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 安装依赖
+        run: |
+          pip install -r requirements.txt
+
+      - name: 生成播客
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PODCAST_TITLE: "GitHub 前沿观察"
+          PODCAST_AUTHOR: "github-podcast-bot"
+          PODCAST_MEDIA_BASE_URL: ${{ secrets.PODCAST_MEDIA_BASE_URL }}
+        run: |
+          python main.py run
+
+      - name: 上传音频产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-episode-${{ github.run_number }}
+          path: |
+            output/episodes/
+            output/feed.xml
+            output/scripts/
+          retention-days: 30
+
+      - name: 提交 RSS feed 更新
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/feed.xml output/episodes_history.json output/scripts/
+          git commit -m "chore: 每日播客更新 $(date -u +%Y-%m-%d)" || echo "无变更"
+          git push

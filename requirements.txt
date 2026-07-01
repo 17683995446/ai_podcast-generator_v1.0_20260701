@@ -1,0 +1,27 @@
+# GitHub 前沿研究项目播客生成工具 - 依赖
+# Python >= 3.10
+
+# --- LLM 脚本生成 ---
+openai>=1.30.0          # DeepSeek 使用 OpenAI 兼容 SDK
+
+# --- TTS 语音合成 ---
+dashscope>=1.20.0       # 阿里云百炼 CosyVoice SDK
+
+# --- 项目发现 ---
+feedparser>=6.0.11      # RSSHub RSS 解析
+requests>=2.31.0        # HTTP 请求
+
+# --- 音频处理 ---
+pydub>=0.25.1           # 音频拼接
+pyloudnorm>=0.1.1       # 响度归一化（-16 LUFS）
+numpy>=1.26.0           # pyloudnorm 依赖
+soundfile>=0.12.1       # 音频文件读写
+
+# --- 配置与 CLI ---
+pyyaml>=6.0.1           # YAML 配置
+python-dotenv>=1.0.1    # .env 环境变量
+click>=8.1.7            # CLI 框架
+rich>=13.7.1            # 终端美化输出
+
+# --- RSS 发布 ---
+feedgen>=1.0.0          # 播客 RSS feed 生成

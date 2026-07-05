@@ -1,220 +1,76 @@
 /* ════════════════════════════════════════
    analysis.css — 项目深度分析视图专用样式
    参考 zread.ai 风格
+
+   注：基础分析卡片样式（.analysis-view / .analysis-header / .proj-card /
+   .proj-head / .proj-icon / .proj-title / .proj-summary / .proj-text /
+   .proj-divider / .tech-tags / .tech-tag / .module-grid / .module-item /
+   .module-name / .mn-dot / .module-desc / .code-block / .mermaid-container /
+   .mermaid-container .mermaid / .insight-list / .section-label / .sl-icon 等）
+   已统一至 components.css（在所有页面生效，消除与 episodes 页的视觉不一致）。
+   本文件仅保留分析页专属增强样式：
+   highlight.js / 代码复制按钮 / Mermaid svg / 评分徽章 / 健康度 /
+   依赖清单 / 跨项目对比 / 互动问答 / 代码级指标 / 证据链。
    ════════════════════════════════════════ */
 
-.analysis-view {
-  margin-top: 12px;
-  padding: 16px;
-  background: var(--surface-code);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  max-height: 600px;
-  overflow-y: auto;
-  display: none;
-}
-.analysis-view.open { display: block; }
-
-/* 单个项目分析卡片 */
-.proj-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 18px 20px;
-  margin-bottom: 16px;
-  transition: border-color 0.2s;
-}
-.proj-card:hover { border-color: var(--border-light); }
-.proj-card:last-child { margin-bottom: 0; }
-
-/* 项目标题与一句话概述 */
-.proj-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-.proj-icon {
-  width: 28px; height: 28px;
-  background: linear-gradient(135deg, var(--accent), #a29bfe);
-  border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px;
-  flex-shrink: 0;
-}
-.proj-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-}
-.proj-summary {
-  font-size: 13px;
-  color: var(--text-dim);
-  line-height: 1.6;
-  margin-bottom: 14px;
-  padding-left: 38px;
-}
-
-/* 小节标题 */
-.section-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 14px 0 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.section-label .sl-icon { font-size: 13px; }
-
-/* 技术栈芯片标签 */
-.tech-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-.tech-tag {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #fff;
-  background: var(--accent);
-  line-height: 1.4;
-}
-
-/* 段落文本（架构、对比、代码洞察等） */
-.proj-text {
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text);
-}
-
-/* 关键模块网格 */
-.module-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-@media (max-width: 760px) {
-  .module-grid { grid-template-columns: 1fr; }
-}
-.module-item {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  transition: border-color 0.2s;
-}
-.module-item:hover { border-color: var(--accent); }
-.module-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.module-name .mn-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-.module-desc {
-  font-size: 12px;
-  color: var(--text-dim);
-  line-height: 1.6;
-}
-
-/* 快速上手代码块 */
-.code-block {
-  background: var(--surface-code);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--green);
-  overflow-x: auto;
-  white-space: pre;
-}
+/* ── 代码块增强：终端前缀 / highlight.js / 复制按钮 ── */
 .code-block::before {
   content: "$ ";
   color: var(--text-dim);
 }
 
-/* 亮点 / 场景列表 */
-.insight-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+/* ── highlight.js 代码高亮增强 ── */
+.code-block[data-hljs]::before {
+  content: none; /* 高亮后移除 $ 前缀（由 <pre> 内部控制） */
 }
-.insight-list li {
-  font-size: 13px;
+.code-block[data-hljs] {
+  padding: 0; /* 高亮后由 <pre> 控制内边距 */
+}
+.hljs-pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: transparent !important;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-size: 12px;
   line-height: 1.7;
-  color: var(--text);
-  padding: 4px 0 4px 22px;
-  position: relative;
+  overflow-x: auto;
 }
-.insight-list li::before {
-  content: "✓";
-  position: absolute;
-  left: 4px;
-  top: 4px;
-  color: var(--green);
-  font-weight: 700;
-}
-.insight-list.use-cases li::before {
-  content: "▸";
-  color: var(--accent);
-  font-size: 14px;
-}
-
-/* 分隔符（项目间） */
-.proj-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
-  margin: 0;
-}
-
-/* 分析视图标题栏 */
-.analysis-header {
-  font-size: 13px;
-  font-weight: 700;
+.hljs-pre terminal-style::before {
+  content: "$ ";
   color: var(--text-dim);
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 8px;
+}
+.code-block[data-hljs] code {
+  background: transparent !important;
+  padding: 0 !important;
+}
+.code-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  font-family: inherit;
+}
+.code-block:hover .code-copy-btn {
+  opacity: 1;
+}
+.code-copy-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 /* ════════════════════════════════════════
    增强可视化组件：Mermaid / 健康面板 / 依赖 / 评分 / 对比
    ════════════════════════════════════════ */
 
-/* —— Mermaid 架构图容器 —— */
-.mermaid-container {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  overflow-x: auto;
-  margin-bottom: 4px;
-}
-.mermaid-container .mermaid {
-  display: flex;
-  justify-content: center;
-  min-width: 0;
-}
+/* —— Mermaid 架构图容器（基础 .mermaid-container / .mermaid-container .mermaid 见 components.css）—— */
 .mermaid-container .mermaid svg {
   max-width: 100%;
   height: auto;
@@ -485,4 +341,222 @@
   background: var(--card-hover);
   border-left: 3px solid var(--accent);
   font-size: 13px; line-height: 1.7; color: var(--text);
+}
+
+/* ════════════════════════════════════════
+   以下样式自 components.css 迁移而来（分析页专用）
+   仅由 js/pages/analysis.js 渲染，不与 episodes.js 共享
+   ════════════════════════════════════════ */
+
+/* ── 代码级分析指标面板 ── */
+.code-metrics-panel {
+  background: var(--surface-code);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-4);
+  margin-top: var(--sp-2);
+}
+.cm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.cm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cm-cell-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+.cm-cell-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+.cm-cell-sub {
+  font-size: 11px;
+  color: var(--text-mute);
+}
+.cm-arch { color: var(--accent-light); }
+.cm-conf { font-size: 11px; font-weight: 400; color: var(--text-mute); }
+.cm-arch-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.cm-arch-signal {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-light);
+  border: 1px solid rgba(124, 111, 240, 0.15);
+}
+.cm-score-bar {
+  height: 6px;
+  background: var(--bg-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.cm-score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.cm-complexity { background: var(--orange); }
+.cm-quality { background: var(--green); }
+.cm-maintainability { background: var(--accent); }
+.cm-test-high { color: var(--green); }
+.cm-test-mid { color: var(--blue); }
+.cm-test-low { color: var(--orange); }
+.cm-test-none { color: var(--red); }
+/* 语言分布条 */
+.cm-lang-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+.cm-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-lang-name {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 70px;
+}
+.cm-lang-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.cm-lang-bar {
+  height: 100%;
+  background: var(--grad-accent);
+  border-radius: 2px;
+}
+.cm-lang-loc {
+  font-size: 11px;
+  color: var(--text-mute);
+  min-width: 40px;
+  text-align: right;
+}
+/* 代码异味 */
+.cm-smells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--sp-2);
+}
+.cm-smell {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(253, 203, 110, 0.1);
+  color: var(--orange);
+  border: 1px solid rgba(253, 203, 110, 0.2);
+}
+/* 最大文件 */
+.cm-largest-files {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+.cm-file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 11px;
+}
+.cm-file-path {
+  color: var(--text-dim);
+  font-family: "JetBrains Mono", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+.cm-file-loc {
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+
+/* ── 证据链可视化 ── */
+.evidence-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 8px 0 12px;
+  background: rgba(124, 111, 240, 0.06);
+  border: 1px solid rgba(124, 111, 240, 0.15);
+  border-radius: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.ev-summary-label {
+  font-weight: 700;
+  color: var(--accent-light);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ev-coverage {
+  font-weight: 700;
+  font-size: 13px;
+}
+.ev-count {
+  color: var(--green);
+  font-weight: 600;
+}
+.ev-inferred-count {
+  color: var(--text-mute);
+}
+.ev-total {
+  color: var(--text-mute);
+  margin-left: auto;
+}
+
+.ev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.ev-verified {
+  background: rgba(0, 217, 163, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(0, 217, 163, 0.2);
+}
+.ev-inferred {
+  background: rgba(253, 203, 110, 0.1);
+  color: var(--orange);
+  border: 1px solid rgba(253, 203, 110, 0.15);
+}
+[data-theme="dark"] .ev-verified {
+  background: rgba(0, 217, 163, 0.08);
+}
+[data-theme="dark"] .ev-inferred {
+  background: rgba(253, 203, 110, 0.06);
 }

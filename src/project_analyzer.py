@@ -1,68 +1,22 @@
 """项目深度分析模块：用 LLM 对每个 GitHub 项目生成结构化解读（类似 zread.ai）。
 
 复用 config["llm"] 的 API 配置（base_url / model / api_key / enable_thinking 等），
-与 ScriptGenerator 保持一致的初始化与错误处理模式：
+通过 instructor + Pydantic 实现结构化输出，替代手写 JSON 容错解析：
   - 无 API Key → 返回 mock 分析
   - API 调用失败 → 回退 mock
-  - JSON mode 不被支持 → 去掉 response_format 重试
   - SiliconFlow Qwen3.5 系列通过 enable_thinking=false 关闭思考模式
 """
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
-from openai import OpenAI
-
+from .llm_helper import LLMClientMixin
+from .llm_models import AnalysisResultLLM, ReviewResultLLM
 from .models import GitHubRepo, ProjectAnalysis
 
+from src.logger import get_logger
 
-# 分析结果 JSON Schema（response_format 用）
-ANALYSIS_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "summary": {"type": "string"},
-        "tech_stack": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-        "architecture": {"type": "string"},
-        "key_modules": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "description": {"type": "string"},
-                },
-                "required": ["name", "description"],
-            },
-        },
-        "quick_start": {"type": "string"},
-        "highlights": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-        "use_cases": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-        "comparison": {"type": "string"},
-        "code_insights": {"type": "string"},
-    },
-    "required": [
-        "summary",
-        "tech_stack",
-        "architecture",
-        "key_modules",
-        "quick_start",
-        "highlights",
-        "use_cases",
-        "comparison",
-        "code_insights",
-    ],
-}
+logger = get_logger(__name__)
 
 
 _ANALYSIS_SYSTEM_PROMPT = """你是一位资深的开源项目架构师与技术分析师，擅长像 zread.ai 一样对 GitHub 项目进行结构化深度解读。你的读者是希望快速理解一个项目「值不值得用、怎么用、为什么这样设计」的开发者与工程决策者。
@@ -101,7 +55,7 @@ _REVIEW_SYSTEM_PROMPT = """你是一位严格的技术分析评审。请对提�
 3. architecture 描述是否有证据支撑、是否脚踏实地？
 
 严格输出一个 JSON 对象（不要输出 JSON 之外的文字）：
-{"score": 1到10的整数, "reason": "简短理由（1-2 句）"}
+{"score": 1到10的整数, "issues": ["发现的问题列表"], "suggestions": "改进建议"}
 """
 
 
@@ -125,96 +79,79 @@ _MERMAID_SYSTEM_PROMPT = (
 )
 
 
-class ProjectAnalyzer:
+class ProjectAnalyzer(LLMClientMixin):
     """调用 LLM 对 GitHub 项目生成结构化深度分析（类似 zread.ai 解读页）。"""
 
     def __init__(self, config: dict[str, Any]):
+        self._init_llm(config)
         self.cfg = config["llm"]
         self.project_root = config.get("project_root", ".")
-        # 优先使用通用 LLM key（与 ScriptGenerator 一致）
-        self.api_key = (
-            config["api_keys"].get("llm", "")
-            or config["api_keys"].get("deepseek", "")
-        )
-        # 是否需要关闭 thinking 模式（SiliconFlow Qwen3.5 系列）
-        self.enable_thinking = self.cfg.get("enable_thinking", None)
-
-        if not self.api_key:
-            print("[analyzer] 警告：未配置 LLM API Key，将使用 mock 模式")
-
-        self.client = OpenAI(
-            api_key=self.api_key or "mock-key",
-            base_url=self.cfg["base_url"],
-            timeout=self.cfg.get("timeout", 120),
-        )
 
     # ------------------------------------------------------------------
     # 公共 API
     # ------------------------------------------------------------------
-    def analyze(self, repos: list[GitHubRepo]) -> list[ProjectAnalysis]:
-        """对一批项目逐个生成结构化深度分析。"""
+    def analyze(self, repos: list[GitHubRepo], evidence_map: dict | None = None) -> list[ProjectAnalysis]:
+        """对一批项目逐个生成结构化深度分析。
+
+        Args:
+            evidence_map: {repo_name: evidence_list} 深提取证据映射，用于证据链追踪
+        """
+        if evidence_map is None:
+            evidence_map = {}
         results: list[ProjectAnalysis] = []
         for i, repo in enumerate(repos, 1):
-            print(f"[analyzer] ({i}/{len(repos)}) 分析 {repo.name} ...")
-            results.append(self.analyze_single(repo))
+            logger.info(f"({i}/{len(repos)}) 分析 {repo.name} ...")
+            repo_evidence = evidence_map.get(repo.name, [])
+            results.append(self.analyze_single(repo, repo_evidence))
         return results
 
-    def analyze_single(self, repo: GitHubRepo) -> ProjectAnalysis:
-        """分析单个项目，失败时回退到 mock。"""
+    def analyze_single(self, repo: GitHubRepo, evidence_list: list[dict] | None = None) -> ProjectAnalysis:
+        """分析单个项目，失败时回退到 mock。
+
+        Args:
+            evidence_list: 深提取证据列表，用于证据链追踪
+        """
+        if evidence_list is None:
+            evidence_list = []
         if not self.api_key:
-            return self._mock_analysis(repo)
+            return self._attach_evidence(self._mock_analysis(repo), evidence_list)
 
         user_content = self._build_user_content(repo)
-        print(
-            f"[analyzer] 调用 {self.cfg['model']} 分析 {repo.name}，"
+        logger.info(
+            f"调用 {self.cfg['model']} 分析 {repo.name}，"
             f"输入 {len(user_content)} 字符..."
         )
 
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": _ANALYSIS_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": self.cfg.get("temperature", 0.4),
-            "max_tokens": self.cfg.get("max_tokens", 4000),
-            "response_format": {"type": "json_object"},
-        }
-
         # SiliconFlow Qwen3.5 需关闭 thinking 模式
         if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-            print("[analyzer] 已关闭 thinking 模式（enable_thinking=false）")
+            logger.info("已关闭 thinking 模式（enable_thinking=false）")
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            analysis = self._parse_analysis(raw, repo)
-            usage = response.usage
+            result, completion = self.client.chat.completions.create_with_completion(
+                response_model=AnalysisResultLLM,
+                messages=[
+                    {"role": "system", "content": _ANALYSIS_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=self.cfg.get("temperature", 0.4),
+                max_tokens=self.cfg.get("max_tokens", 4000),
+                **self.build_llm_kwargs(),
+            )
+            analysis = self._llm_to_analysis(result, repo)
+            usage = completion.usage
             if usage:
-                print(
-                    f"[analyzer] 完成 {repo.name}：tokens 输入 "
+                logger.info(
+                    f"完成 {repo.name}：tokens 输入 "
                     f"{usage.prompt_tokens} / 输出 {usage.completion_tokens}"
                 )
             # 增强：生成 Mermaid 架构图 + 多轮评审回路
-            return self._finalize(analysis, repo)
+            analysis = self._finalize(analysis, repo)
+            # 附加证据链
+            return self._attach_evidence(analysis, evidence_list)
         except Exception as e:
-            print(f"[analyzer] API 调用失败（{repo.name}）: {e}")
-            # 尝试不带 response_format 重试（某些模型不支持 JSON mode）
-            if "response_format" in str(e).lower() or "json" in str(e).lower():
-                print("[analyzer] 尝试不带 JSON mode 重试...")
-                kwargs.pop("response_format", None)
-                if self.enable_thinking is False:
-                    kwargs["extra_body"] = {"enable_thinking": False}
-                try:
-                    response = self.client.chat.completions.create(**kwargs)
-                    raw = response.choices[0].message.content or ""
-                    # 增强：生成 Mermaid 架构图 + 多轮评审回路
-                    return self._finalize(self._parse_analysis(raw, repo), repo)
-                except Exception as e2:
-                    print(f"[analyzer] 重试失败（{repo.name}）: {e2}")
-            print(f"[analyzer] 回退到 mock 分析（{repo.name}）")
-            return self._mock_analysis(repo)
+            logger.error(f"API 调用失败（{repo.name}）: {e}")
+            logger.warning(f"回退到 mock 分析（{repo.name}）")
+            return self._attach_evidence(self._mock_analysis(repo), evidence_list)
 
     # ------------------------------------------------------------------
     # 内部实现
@@ -239,61 +176,82 @@ class ProjectAnalyzer:
         parts.append("\n请严格输出 JSON 对象，不要输出 JSON 之外的文字。")
         return "\n".join(parts)
 
-    def _parse_analysis(self, raw: str, repo: GitHubRepo) -> ProjectAnalysis:
-        """解析 LLM 返回的 JSON 为 ProjectAnalysis。"""
-        raw = raw.strip()
-        # 容错：去除 markdown 代码块包裹
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-        # 容错：提取首个 JSON 对象
-        if not raw.startswith("{"):
-            match = re.search(r"\{[\s\S]*\}", raw)
-            if match:
-                raw = match.group(0)
-        data = json.loads(raw)
+    def _llm_to_analysis(
+        self, result: AnalysisResultLLM, repo: GitHubRepo
+    ) -> ProjectAnalysis:
+        """将 AnalysisResultLLM 转换为 ProjectAnalysis dataclass。
 
-        def _as_str_list(key: str) -> list[str]:
-            val = data.get(key, [])
-            if isinstance(val, list):
-                return [str(x) for x in val if x is not None]
-            if isinstance(val, str) and val:
-                return [val]
-            return []
+        处理嵌套结构：
+        - key_modules：KeyModuleLLM -> {"name","description"}（仅保留 name/description，过滤空名）
+        - comparison：ComparisonLLM -> 字符串
+        - code_insights：CodeInsightsLLM -> 字符串
+        mermaid_diagram 不在此设置，由 _finalize -> _generate_mermaid 单独生成。
+        """
+        # key_modules：KeyModuleLLM -> {"name","description"}
+        key_modules = [
+            {
+                "name": m.name.strip(),
+                "description": m.description.strip(),
+            }
+            for m in result.key_modules
+            if m.name.strip()
+        ]
 
-        def _as_module_list(key: str) -> list[dict]:
-            val = data.get(key, [])
-            modules: list[dict] = []
-            if not isinstance(val, list):
-                return modules
-            for item in val:
-                if isinstance(item, dict):
-                    modules.append(
-                        {
-                            "name": str(item.get("name", "")).strip(),
-                            "description": str(item.get("description", "")).strip(),
-                        }
-                    )
-                elif isinstance(item, str) and item.strip():
-                    modules.append({"name": item.strip(), "description": ""})
-            return [m for m in modules if m["name"]]
+        # comparison：ComparisonLLM -> 字符串
+        comp = result.comparison
+        comp_parts: list[str] = []
+        if comp.strengths:
+            comp_parts.append("优势：" + "；".join(comp.strengths))
+        if comp.weaknesses:
+            comp_parts.append("劣势：" + "；".join(comp.weaknesses))
+        if comp.alternatives:
+            comp_parts.append("替代方案：" + "；".join(comp.alternatives))
+        comparison_str = "。".join(comp_parts)
+
+        # code_insights：CodeInsightsLLM -> 字符串
+        ci = result.code_insights
+        ci_parts: list[str] = []
+        if ci.patterns:
+            ci_parts.append("设计模式：" + "；".join(ci.patterns))
+        if ci.quality:
+            ci_parts.append("代码质量：" + ci.quality)
+        if ci.complexity:
+            ci_parts.append("复杂度分析：" + ci.complexity)
+        code_insights_str = "。".join(ci_parts)
 
         return ProjectAnalysis(
             repo_name=repo.name,
-            summary=str(data.get("summary", "")).strip(),
-            tech_stack=_as_str_list("tech_stack"),
-            architecture=str(data.get("architecture", "")).strip(),
-            key_modules=_as_module_list("key_modules"),
-            quick_start=str(data.get("quick_start", "")).strip(),
-            highlights=_as_str_list("highlights"),
-            use_cases=_as_str_list("use_cases"),
-            comparison=str(data.get("comparison", "")).strip(),
-            code_insights=str(data.get("code_insights", "")).strip(),
+            summary=result.summary.strip(),
+            tech_stack=list(result.tech_stack),
+            architecture=result.architecture.strip(),
+            key_modules=key_modules,
+            quick_start=result.quick_start.strip(),
+            highlights=list(result.highlights),
+            use_cases=list(result.use_cases),
+            comparison=comparison_str,
+            code_insights=code_insights_str,
         )
 
     # ------------------------------------------------------------------
     # 增强：Mermaid 架构图 + 多轮评审回路
     # ------------------------------------------------------------------
+    def _attach_evidence(self, analysis: ProjectAnalysis, evidence_list: list[dict]) -> ProjectAnalysis:
+        """将深提取证据匹配到分析结果，生成证据链。
+
+        如果 evidence_list 为空，analysis.evidence_sources 保持空列表（前端显示"无证据"）。
+        """
+        if not evidence_list:
+            return analysis
+        try:
+            from src.evidence_tracker import match_evidence_to_analysis
+            analysis.evidence_sources = match_evidence_to_analysis(analysis, evidence_list)
+            verified = sum(1 for e in analysis.evidence_sources if e.get("confidence") == "verified")
+            total = len(analysis.evidence_sources)
+            logger.info(f"证据链：{verified}/{total} 项已验证")
+        except Exception as e:
+            logger.error(f"证据链匹配失败: {e}")
+        return analysis
+
     def _finalize(self, analysis: ProjectAnalysis, repo: GitHubRepo) -> ProjectAnalysis:
         """解析出分析后的增强入口：生成 Mermaid 图，再执行评审回路。
 
@@ -311,32 +269,34 @@ class ProjectAnalyzer:
 
         借鉴 OpenDeepWiki / DeepRepo 的架构图生成：以 key_modules 与 architecture 为输入，
         使用 graph TD 语法展示核心模块依赖与数据流向。
+
+        Mermaid 输出为原始文本（非 JSON），故以 response_model=None 调用，
+        instructor 将直接返回原始 ChatCompletion。
         """
         if not self.api_key:
             return ""
         user_content = self._build_mermaid_content(analysis, repo)
-        print(f"[analyzer] 生成 Mermaid 架构图（{repo.name}）...")
+        logger.info(f"生成 Mermaid 架构图（{repo.name}）...")
 
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": _MERMAID_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.3,
-            "max_tokens": 1000,
-        }
         # SiliconFlow Qwen3.5 需关闭 thinking 模式
         if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-            print("[analyzer] 已关闭 thinking 模式（enable_thinking=false）")
+            logger.info("已关闭 thinking 模式（enable_thinking=false）")
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
+            response = self.client.chat.completions.create(
+                response_model=None,
+                messages=[
+                    {"role": "system", "content": _MERMAID_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.3,
+                max_tokens=1000,
+                **self.build_llm_kwargs(),
+            )
             raw = response.choices[0].message.content or ""
             return self._strip_mermaid_fence(raw)
         except Exception as e:
-            print(f"[analyzer] Mermaid 生成失败（{repo.name}）: {e}")
+            logger.error(f"Mermaid 生成失败（{repo.name}）: {e}")
             return ""
 
     def _build_mermaid_content(self, analysis: ProjectAnalysis, repo: GitHubRepo) -> str:
@@ -360,10 +320,16 @@ class ProjectAnalyzer:
     def _strip_mermaid_fence(raw: str) -> str:
         """去除 ```mermaid ... ``` 代码块包裹，返回纯 Mermaid 代码。"""
         raw = raw.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:mermaid)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-        return raw.strip()
+        if not raw.startswith("```"):
+            return raw
+        lines = raw.splitlines()
+        # 去除首行围栏（``` 或 ```mermaid）
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        # 去除末行闭合围栏
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        return "\n".join(lines).strip()
 
     def _review_and_refine(
         self, analysis: ProjectAnalysis, repo: GitHubRepo
@@ -383,19 +349,19 @@ class ProjectAnalyzer:
             if score is None:
                 # 评审失败 -> 保留当前分析，默认通过（优雅降级）
                 current.review_passed = True
-                print(f"[analyzer] 评审失败（{repo.name}），保留当前分析")
+                logger.warning(f"评审失败（{repo.name}），保留当前分析")
                 return current
 
             current.review_score = score
             if score >= 7:
                 current.review_passed = True
-                print(f"[analyzer] 评审通过（{repo.name}），分数 {score}")
+                logger.info(f"评审通过（{repo.name}），分数 {score}")
                 return current
 
             # score < 7
             if i < max_iterations - 1:
-                print(
-                    f"[analyzer] 评审分数 {score} < 7（{repo.name}），"
+                logger.warning(
+                    f"评审分数 {score} < 7（{repo.name}），"
                     "使用更严格 prompt 重新生成..."
                 )
                 regenerated = self._regenerate_with_strict_prompt(current, repo)
@@ -405,12 +371,12 @@ class ProjectAnalyzer:
                     current = regenerated
                 else:
                     current.review_passed = False
-                    print(f"[analyzer] 重新生成失败（{repo.name}），保留原分析")
+                    logger.warning(f"重新生成失败（{repo.name}），保留原分析")
                     return current
             else:
                 current.review_passed = False
-                print(
-                    f"[analyzer] 评审未通过（{repo.name}），已达最大轮次，分数 {score}"
+                logger.warning(
+                    f"评审未通过（{repo.name}），已达最大轮次，分数 {score}"
                 )
                 return current
         return current
@@ -420,27 +386,22 @@ class ProjectAnalyzer:
     ) -> float | None:
         """调用 LLM 评审分析准确性，返回 1-10 分；失败返回 None。"""
         user_content = self._build_review_content(analysis, repo)
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 500,
-            "response_format": {"type": "json_object"},
-        }
-        if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            data = json.loads(self._extract_json(raw))
-            score = float(data.get("score", 0))
+            result = self.client.chat.completions.create(
+                response_model=ReviewResultLLM,
+                messages=[
+                    {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.2,
+                max_tokens=500,
+                **self.build_llm_kwargs(),
+            )
+            # 将 ReviewResultLLM 转换为旧格式：评审回路仅需 score（1-10）
+            score = float(result.score)
             return max(0.0, min(10.0, score))
         except Exception as e:
-            print(f"[analyzer] 评审调用失败（{repo.name}）: {e}")
+            logger.error(f"评审调用失败（{repo.name}）: {e}")
             return None
 
     def _build_review_content(self, analysis: ProjectAnalysis, repo: GitHubRepo) -> str:
@@ -450,7 +411,15 @@ class ProjectAnalyzer:
         parts.append(f"概述：{analysis.summary}")
         parts.append(f"技术栈：{', '.join(analysis.tech_stack)}")
         parts.append(f"架构：{analysis.architecture}")
-        parts.append(f"关键模块：{json.dumps(analysis.key_modules, ensure_ascii=False)}")
+        if analysis.key_modules:
+            modules_text = "; ".join(
+                f"{m.get('name', '')}：{m.get('description', '')}"
+                for m in analysis.key_modules
+                if isinstance(m, dict)
+            )
+        else:
+            modules_text = "（无）"
+        parts.append(f"关键模块：{modules_text}")
         readme = repo.readme_markdown.strip()
         if readme:
             parts.append(f"\nREADME（用于核对证据，已截断）：\n{readme[:4000]}")
@@ -458,7 +427,7 @@ class ProjectAnalyzer:
             parts.append("\nREADME：（未抓取到，请基于描述与标签评审）")
         parts.append(
             "\n请严格基于 README 核对，输出 JSON："
-            '{"score": 1到10的整数, "reason": "简短理由"}。'
+            '{"score": 1到10的整数, "issues": ["问题列表"], "suggestions": "改进建议"}。'
         )
         return "\n".join(parts)
 
@@ -467,39 +436,21 @@ class ProjectAnalyzer:
     ) -> ProjectAnalysis | None:
         """用更严格的 system prompt 重新生成分析；失败返回 None。"""
         user_content = self._build_user_content(repo)
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": _STRICT_ANALYSIS_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": self.cfg.get("temperature", 0.4),
-            "max_tokens": self.cfg.get("max_tokens", 4000),
-            "response_format": {"type": "json_object"},
-        }
-        if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            return self._parse_analysis(raw, repo)
+            result = self.client.chat.completions.create(
+                response_model=AnalysisResultLLM,
+                messages=[
+                    {"role": "system", "content": _STRICT_ANALYSIS_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=self.cfg.get("temperature", 0.4),
+                max_tokens=self.cfg.get("max_tokens", 4000),
+                **self.build_llm_kwargs(),
+            )
+            return self._llm_to_analysis(result, repo)
         except Exception as e:
-            print(f"[analyzer] 严格重新生成失败（{repo.name}）: {e}")
+            logger.error(f"严格重新生成失败（{repo.name}）: {e}")
             return None
-
-    @staticmethod
-    def _extract_json(raw: str) -> str:
-        """容错提取首个 JSON 对象文本（去除 markdown 代码块包裹）。"""
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-        if not raw.startswith("{"):
-            match = re.search(r"\{[\s\S]*\}", raw)
-            if match:
-                raw = match.group(0)
-        return raw
 
     def _mock_analysis(self, repo: GitHubRepo) -> ProjectAnalysis:
         """无 API Key 或调用失败时的占位分析。"""

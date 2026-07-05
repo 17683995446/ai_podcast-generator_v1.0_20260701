@@ -1,0 +1,985 @@
+/* ════════════════════════════════════════
+   ui-optimizations.css — UI 优化增强
+   视觉层次、动画、响应式、可访问性
+   ════════════════════════════════════════ */
+
+/* ── 1. 统计卡数字计数动画 ── */
+.stat-value {
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.counting {
+  animation: count-pop 0.6s ease-out;
+}
+@keyframes count-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── 2. 卡片悬停增强 ── */
+.stat-card {
+  cursor: default;
+}
+.stat-card:hover .stat-icon {
+  transform: scale(1.12) rotate(-6deg);
+}
+.stat-card:hover .stat-value {
+  color: var(--accent-light);
+  transition: color 0.3s;
+}
+
+/* ── 3. 流水线进度条增强 ── */
+.pipeline-bar {
+  background: var(--grad-card), var(--card);
+}
+.pipeline-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--green) 50%, transparent 100%);
+  opacity: 0.3;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* 步骤间连线动画 */
+.step-line {
+  position: relative;
+  overflow: hidden;
+}
+.step-line.active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: var(--grad-accent);
+  animation: line-fill 0.8s ease-out forwards;
+}
+@keyframes line-fill {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}
+
+/* 步骤 tooltip */
+.step {
+  position: relative;
+}
+.step[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--card-glass);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+.step:hover[data-tooltip]::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── 4. 日志面板增强 ── */
+.log-box {
+  scroll-behavior: smooth;
+}
+.log-box::-webkit-scrollbar {
+  width: 5px;
+}
+.log-box::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+.log-line {
+  padding: 2px 0;
+  animation: log-in 0.3s ease-out;
+}
+@keyframes log-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* 日志空状态增强 */
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+}
+.log-empty::before {
+  content: '💻';
+  font-size: 32px;
+  opacity: 0.3;
+}
+
+/* ── 5. 空状态增强 ── */
+.empty-state-enhanced .icon {
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ── 6. 可访问性：焦点态 ── */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.btn:focus-visible,
+.btn-cta:focus-visible,
+.source-tab:focus-visible,
+.style-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 7. 滚动条优化（全局）── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
+}
+
+/* ── 8. 回到顶部按钮 ── */
+.scroll-top-btn {
+  position: fixed;
+  bottom: calc(84px + var(--safe-bottom));
+  right: 24px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--card-glass);
+  border: 1px solid var(--border-light);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
+  transition: all var(--transition-spring);
+  z-index: 900;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+}
+/* WebView 中 backdrop-filter 可能失效，使用不透明背景 */
+html.in-webview .scroll-top-btn {
+  background: var(--card);
+}
+.scroll-top-btn.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.scroll-top-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-light);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+.scroll-top-btn:active {
+  transform: translateY(0) scale(0.95);
+}
+
+/* ── 9. 页面过渡动画 ── */
+.page-enter {
+  animation: page-enter 0.35s ease-out;
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 内容区淡入 */
+.container > * {
+  animation: stagger-in 0.4s ease-out backwards;
+}
+.container > *:nth-child(1) { animation-delay: 0s; }
+.container > *:nth-child(2) { animation-delay: 0.05s; }
+.container > *:nth-child(3) { animation-delay: 0.1s; }
+.container > *:nth-child(4) { animation-delay: 0.15s; }
+.container > *:nth-child(5) { animation-delay: 0.2s; }
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 10. 节目卡片正在播放指示器 ── */
+.episode-item.now-playing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow), 0 4px 20px var(--accent-glow);
+}
+.episode-item.now-playing::before {
+  opacity: 1;
+  background: var(--grad-green);
+}
+.episode-item.now-playing .ep-title::after {
+  content: '🎵';
+  margin-left: 6px;
+  animation: bounce 0.8s ease-in-out infinite alternate;
+}
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-3px); }
+}
+
+/* 节目卡片悬停增强 */
+.episode-item:hover .ep-actions {
+  opacity: 1;
+}
+.ep-actions {
+  opacity: 0.85;
+  transition: opacity var(--transition);
+}
+
+/* ── 11. 按钮波纹效果 ── */
+.btn-cta,
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.btn-cta:active:not(:disabled)::after,
+.btn-primary:active:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 0; height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  animation: ripple 0.5s ease-out;
+}
+@keyframes ripple {
+  to { width: 300px; height: 300px; opacity: 0; }
+}
+
+/* ── 12. 移动端导航优化 ── */
+@media (max-width: 768px) {
+  .nav-bar {
+    padding: 0 var(--sp-3);
+    height: 54px;
+  }
+  .nav-logo h1 {
+    font-size: 13px;
+  }
+  .nav-links {
+    gap: 0;
+    margin-left: auto;
+  }
+  .nav-link {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .nav-link .nav-label {
+    display: none;
+  }
+  .badge {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+  .badge .badge-text {
+    display: none;
+  }
+  /* 统计卡 2 列 */
+  .grid-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .stat-card {
+    padding: 12px 14px;
+  }
+  .stat-value {
+    font-size: 22px;
+  }
+  .stat-icon {
+    width: 32px; height: 32px;
+    font-size: 15px;
+  }
+  /* 流水线横向滚动 */
+  .stepper {
+    gap: 0;
+    padding-bottom: 8px;
+  }
+  .step-label {
+    font-size: 10px;
+  }
+  /* 生成区单列 */
+  .grid-main {
+    grid-template-columns: 1fr;
+  }
+  .batch-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .batch-presets {
+    justify-content: center;
+  }
+  /* 播放器适配 */
+  .player-info {
+    max-width: 120px;
+  }
+  .player-title-text {
+    font-size: 11px;
+  }
+  .scroll-top-btn {
+    bottom: calc(76px + var(--safe-bottom));
+    right: 16px;
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-logo .logo-icon {
+    width: 30px; height: 30px;
+    font-size: 15px;
+  }
+  .container {
+    padding: var(--sp-3) var(--sp-2) calc(88px + var(--safe-bottom));
+  }
+  .card {
+    padding: var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .stat-card {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+  .stat-icon-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+}
+
+/* ── 12.5 汉堡菜单（仅移动端显示） ── */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s;
+}
+.nav-hamburger:hover {
+  background: var(--hover);
+}
+.nav-hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--text-bright);
+  border-radius: 1px;
+  transition: transform 0.3s, opacity 0.3s;
+}
+.nav-hamburger.active span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+.nav-hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+.nav-hamburger.active span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* 移动端菜单面板 */
+.mobile-nav-menu {
+  display: none;
+  position: fixed;
+  top: 54px;
+  left: 0;
+  right: 0;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  z-index: 999;
+  transform: translateY(-100%);
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  pointer-events: none;
+}
+.mobile-nav-menu.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  font-size: 15px;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+.mobile-nav-link:hover, .mobile-nav-link.active {
+  background: var(--hover);
+  color: var(--accent);
+}
+.mobile-nav-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+}
+.mobile-nav-text {
+  font-weight: 500;
+}
+
+/* ── 12.6 移动端增强（≤768px） ── */
+@media (max-width: 768px) {
+  /* 显示汉堡菜单，隐藏水平导航 */
+  .nav-hamburger {
+    display: flex;
+  }
+  .nav-links {
+    display: none;
+  }
+  .mobile-nav-menu {
+    display: block;
+  }
+
+  /* 播放器栏优化：隐藏音量滑块 */
+  .player-volume-wrap {
+    display: none;
+  }
+  .player-info {
+    max-width: 140px;
+  }
+  .player-controls {
+    gap: 4px;
+  }
+
+  /* 节目卡片按钮换行 */
+  .ep-card-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ep-card-actions .btn,
+  .ep-card-actions a {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  /* 表单标签页横向滚动 */
+  .tab-group {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+  }
+  .tab-group::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* 批量生成按钮区优化 */
+  .batch-presets {
+    gap: 4px;
+  }
+  .batch-presets .btn {
+    min-width: 36px;
+    padding: 4px 8px;
+  }
+
+  /* 分析页面卡片优化 */
+  .proj-card {
+    padding: var(--sp-3);
+  }
+  .proj-card .card-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* 搜索结果优化 */
+  .search-result-card {
+    padding: 12px;
+  }
+  .search-result-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+/* ── 12.7 超小屏优化（≤375px） ── */
+@media (max-width: 375px) {
+  .nav-bar {
+    height: 50px;
+    padding: 0 10px;
+  }
+  .nav-logo .logo-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+  .nav-logo .nav-logo-text {
+    font-size: 11px;
+  }
+  .badge {
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+  .badge .pulse {
+    width: 6px;
+    height: 6px;
+  }
+  .theme-toggle-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .container {
+    padding: var(--sp-2) 8px calc(80px + var(--safe-bottom));
+  }
+
+  /* 统计卡片更紧凑 */
+  .grid-stats {
+    gap: 8px;
+  }
+  .stat-card {
+    padding: 10px 8px;
+  }
+  .stat-value {
+    font-size: 18px;
+  }
+  .stat-label {
+    font-size: 10px;
+  }
+  .stat-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  /* 生成按钮全宽 */
+  .generate-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* 播放器栏极简模式 */
+  .player-bar {
+    padding: 0 8px;
+  }
+  .player-info {
+    max-width: 100px;
+  }
+  .player-title-text {
+    font-size: 10px;
+  }
+  .player-time {
+    font-size: 10px;
+  }
+  .player-progress {
+    margin: 0 4px;
+  }
+  .player-mute-btn {
+    width: 28px;
+    height: 28px;
+  }
+  .player-close-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* 节目卡片更紧凑 */
+  .ep-card {
+    padding: 10px;
+  }
+  .ep-card-title {
+    font-size: 13px;
+  }
+  .ep-card-meta {
+    font-size: 10px;
+    gap: 6px;
+  }
+  .ep-card-repos {
+    font-size: 10px;
+    word-break: break-all;
+  }
+
+  /* 流水线步骤优化 */
+  .stepper {
+    gap: 0;
+  }
+  .step-item {
+    min-width: 50px;
+  }
+  .step-number {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+  .step-label {
+    font-size: 9px;
+  }
+}
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-light);
+  text-shadow: none;
+}
+
+/* ── 14. 减少动画偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .scroll-top-btn { transition: opacity 0.2s; }
+}
+
+/* ── 15. 生成按钮加载态增强 ── */
+.btn-cta:disabled,
+.btn-cta.btn-loading {
+  cursor: wait;
+  opacity: 0.75;
+}
+.btn-cta.btn-loading .btn-cta-icon {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── 16. 搜索高亮增强 ── */
+.search-highlight {
+  background: var(--accent-soft);
+  color: var(--accent-light);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+/* ── 17. 响应式表格/代码块 ── */
+.code-block,
+.log-box,
+.script-view {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 18. 链接下划线动画 ── */
+.link {
+  position: relative;
+  text-decoration: none;
+}
+.link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--accent);
+  transition: width var(--transition);
+}
+.link:hover::after {
+  width: 100%;
+}
+
+/* ════════════════════════════════════════
+   Stage 10 — UX 增强组件
+   ════════════════════════════════════════ */
+
+/* ── 19. 节目列表"加载更多"按钮 ── */
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0 8px;
+}
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 28px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.load-more-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px var(--accent-glow);
+}
+.load-more-btn:active {
+  transform: translateY(0);
+}
+.load-more-icon {
+  font-size: 16px;
+  transition: transform 0.2s;
+}
+.load-more-btn:hover .load-more-icon {
+  transform: translateY(2px);
+}
+.load-more-count {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── 20. 分析页可折叠卡片 ── */
+.analysis-card {
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.analysis-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+.analysis-card-header:hover {
+  background: var(--card-hover);
+}
+.analysis-card-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.analysis-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.analysis-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analysis-card-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.analysis-card-hint {
+  font-size: 12px;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.analysis-card-chevron {
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+}
+.analysis-card-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--border);
+  animation: expand-in 0.3s ease-out;
+}
+.analysis-card-body[hidden] {
+  display: none;
+}
+.analysis-card-meta {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+@keyframes expand-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 分析卡片在移动端优化 */
+@media (max-width: 768px) {
+  .analysis-card-header {
+    padding: 12px;
+  }
+  .analysis-card-title {
+    font-size: 13px;
+  }
+  .analysis-card-hint {
+    display: none;
+  }
+  .analysis-card-body {
+    padding: 0 12px 12px;
+  }
+}
+
+/* ── 21. 错误页增强样式（404 / 500） ── */
+.error-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+.error-page-content {
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+}
+.error-page-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: float 3s ease-in-out infinite;
+}
+.error-page-code {
+  font-size: 72px;
+  font-weight: 800;
+  line-height: 1;
+  margin: 0 0 8px;
+  background: var(--grad-accent);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.error-page-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text-bright);
+}
+.error-page-desc {
+  font-size: 15px;
+  color: var(--text-dim);
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+.error-page-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+}
+.error-page-nav {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.error-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+.error-nav-link:hover {
+  color: var(--accent-light);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+@media (max-width: 375px) {
+  .error-page-code {
+    font-size: 56px;
+  }
+  .error-page-title {
+    font-size: 20px;
+  }
+  .error-page-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .error-page-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ════════════════════════════════════════
+   Stage 11 — 性能优化
+   ════════════════════════════════════════ */
+
+/* ── 22. content-visibility：离屏内容跳过渲染 ── */
+/* 浏览器在滚动到可视区域前不渲染这些元素，大幅减少长列表的首屏渲染时间 */
+@supports (content-visibility: auto) {
+  .episode-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 120px;
+  }
+  .analysis-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 56px;
+  }
+  .search-result-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 100px;
+  }
+  .proj-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 200px;
+  }
+}
+
+/* ── 23. will-call 优化：避免频繁重绘 ── */
+.nav-bar, .player-bar, .scroll-top-btn {
+  will-change: transform;
+}
+.mobile-nav-menu {
+  will-change: transform, opacity;
+}

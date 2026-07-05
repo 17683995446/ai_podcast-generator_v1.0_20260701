@@ -1,9 +1,9 @@
 // ════════════════════════════════════════
 // task-panel.js — 生成面板 + 日志 + 任务轮询
 // ════════════════════════════════════════
-import { api } from '../api.js';
+import { api, clearCache } from '../api.js';
 import { setButtonsDisabled, getPollState, setPollState } from '../state.js';
-import { escapeHtml, updateStatusBadge } from '../utils.js';
+import { escapeHtml, updateStatusBadge, autoScrollToBottom } from '../utils.js';
 import { toast } from '../toast.js';
 
 // 两步生成「大纲完成」通知去重标志（避免轮询时重复 console.info）
@@ -107,6 +107,10 @@ export async function triggerBatch() {
 export function setBatchCount(n) {
   const el = document.getElementById('batchCount');
   if (el) el.value = n;
+  // 更新预设按钮的 active 状态
+  document.querySelectorAll('[data-action="set-batch-count"]').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.count) === n);
+  });
 }
 
 // ════════════════════════════════════════
@@ -115,7 +119,21 @@ export function setBatchCount(n) {
 export function renderLog(logLines) {
   const box = document.getElementById('logBox');
   if (!box) return;
-  box.innerHTML = logLines.map(line => {
+  if (!logLines || logLines.length === 0) {
+    box.innerHTML = '<div class="log-empty">暂无日志，点击「生成」按钮开始...</div>';
+    return;
+  }
+
+  // P2修复：过滤 ::PROGRESS:: 协议消息，不作为日志文本显示
+  // 这些消息由 updateStepper / updateProgressDetail 通过 pipeline_progress 结构化数据处理
+  const displayLines = logLines.filter(line => !line.startsWith('::PROGRESS::'));
+
+  if (displayLines.length === 0) {
+    box.innerHTML = '<div class="log-empty">任务进行中...</div>';
+    return;
+  }
+
+  box.innerHTML = displayLines.map(line => {
     let cls = 'log-line';
     if (/完成|✅|success/.test(line)) cls += ' success';
     else if (/失败|❌|error|异常/.test(line)) cls += ' error';
@@ -123,7 +141,7 @@ export function renderLog(logLines) {
     else if (/\[1\/6\]|\[2\/6\]|\[3\/6\]|\[4\/6\]|\[6\/6\]|阶段/.test(line)) cls += ' info';
     return `<div class="${cls}">${escapeHtml(line)}</div>`;
   }).join('');
-  box.scrollTop = box.scrollHeight;
+  autoScrollToBottom(box);
 }
 
 // ════════════════════════════════════════
@@ -144,7 +162,12 @@ export function createPollTask(onTaskDone) {
     if (taskLabel) {
       taskLabel.textContent = s.running ? `⏳ ${s.type}` : (s.done ? `✅ ${s.type}` : '');
     }
-    updateStepper(s.log || []);
+    // 优先使用结构化进度数据，回退到日志正则匹配
+    updateStepper(s.log || [], s.pipeline_progress);
+
+    // 更新进度百分比和当前阶段摘要
+    // P3修复：任务未运行时不显示旧进度，避免状态残留
+    updateProgressDetail(s.running ? s.pipeline_progress : null);
 
     // 任务运行时显示"停止"按钮
     const cancelBtn = document.getElementById('cancelTaskBtn');
@@ -175,6 +198,8 @@ export function createPollTask(onTaskDone) {
         } else {
           toast.success('播客生成完成！可在节目库收听');
         }
+        // Stage 11: 清除 API 缓存，确保任务完成后刷新到最新数据
+        clearCache();
         await onTaskDone(); // 回调：刷新 stats 和 episodes
       }
     }
@@ -187,18 +212,74 @@ export function createPollTask(onTaskDone) {
 // ════════════════════════════════════════
 // 进度步骤指示器
 // ════════════════════════════════════════
-function updateStepper(logLines) {
+
+// 流水线阶段 → 前端步骤编号映射
+const STAGE_TO_STEP = {
+  discovery:    1,
+  crawl:        2,
+  deep_extract: 2.1,
+  analyze:      2.5,
+  compare:      2.5,   // 对比归入分析步骤
+  script:       3,
+  tts:          4,
+  mix:          5,
+  publish:      6,
+};
+
+function updateStepper(logLines, pipelineProgress) {
   const stepper = document.getElementById('stepper');
   if (!stepper) return;
 
   const steps = stepper.querySelectorAll('.step');
   const lines = stepper.querySelectorAll('.step-line');
   
-  // 从日志中检测当前阶段
+  // ── 优先使用结构化进度数据 ──
+  if (pipelineProgress && pipelineProgress.stages) {
+    const stageMap = pipelineProgress.stages;
+    const allDone = !pipelineProgress.current_stage && pipelineProgress.completed_stages === pipelineProgress.total_stages;
+    
+    // 构建每个步骤的状态
+    const stepStatus = {}; // stepNum → 'done' | 'active'
+    let maxActiveStep = 0;
+
+    for (const [stageId, info] of Object.entries(stageMap)) {
+      const stepNum = STAGE_TO_STEP[stageId];
+      if (stepNum === undefined) continue;
+      if (info.status === 'done' || info.status === 'skipped') {
+        stepStatus[stepNum] = 'done';
+        if (stepNum > maxActiveStep) maxActiveStep = stepNum;
+      } else if (info.status === 'running') {
+        stepStatus[stepNum] = 'active';
+        if (stepNum > maxActiveStep) maxActiveStep = stepNum;
+      }
+    }
+
+    steps.forEach(stepEl => {
+      const stepNum = parseFloat(stepEl.dataset.step);
+      stepEl.classList.remove('active', 'done');
+      if (allDone || (stepStatus[stepNum] === 'done')) {
+        stepEl.classList.add('done');
+      } else if (stepStatus[stepNum] === 'active') {
+        stepEl.classList.add('active');
+      }
+    });
+
+    lines.forEach(lineEl => lineEl.classList.remove('active'));
+    if (maxActiveStep > 0) {
+      const stepEls = Array.from(steps);
+      const currentIdx = stepEls.findIndex(e => parseFloat(e.dataset.step) === maxActiveStep);
+      for (let i = 0; i < currentIdx && i < lines.length; i++) {
+        lines[i].classList.add('active');
+      }
+    }
+    return;
+  }
+
+  // ── 回退：从日志中正则匹配（兼容旧版） ──
   let currentStep = 0;
   const fullLog = logLines.join('\n');
 
-  // 两步生成：检测「大纲完成」（步骤1 生成节目大纲 → 大纲完成）
+  // 两步生成：检测「大纲完成」
   if (!_outlineNotified && /大纲完成/.test(fullLog)) {
     toast.info('节目大纲已生成，正在展开完整脚本...');
     _outlineNotified = true;
@@ -221,7 +302,6 @@ function updateStepper(logLines) {
     }
   }
   
-  // 检测是否全部完成
   const allDone = /完成|✅.*播客生成/.test(fullLog);
   
   steps.forEach(stepEl => {
@@ -237,7 +317,6 @@ function updateStepper(logLines) {
   lines.forEach(lineEl => {
     lineEl.classList.remove('active');
   });
-  // 激活当前步骤之前的连接线
   if (currentStep > 0) {
     const stepEls = Array.from(steps);
     const currentIdx = stepEls.findIndex(e => parseFloat(e.dataset.step) === currentStep);
@@ -248,12 +327,51 @@ function updateStepper(logLines) {
 }
 
 // ════════════════════════════════════════
-// 内容来源 / 播客风格 切换
+// 进度详情：百分比 + 当前阶段摘要
 // ════════════════════════════════════════
-// 切换内容来源
+function updateProgressDetail(pipelineProgress) {
+  const detailEl = document.getElementById('progressDetail');
+  if (!detailEl) return;
+
+  if (!pipelineProgress) {
+    detailEl.style.display = 'none';
+    return;
+  }
+
+  detailEl.style.display = 'flex';
+  const percent = pipelineProgress.progress_percent || 0;
+  const currentStage = pipelineProgress.current_stage;
+  const stages = pipelineProgress.stages || {};
+
+  // 获取当前阶段的摘要
+  let currentSummary = '';
+  if (currentStage && stages[currentStage]) {
+    currentSummary = stages[currentStage].summary || stages[currentStage].label || '';
+  }
+
+  detailEl.innerHTML = `
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" style="width: ${percent}%"></div>
+    </div>
+    <div class="progress-bar-info">
+      <span class="progress-percent">${percent}%</span>
+      <span class="progress-stage">${escapeHtml(currentSummary)}</span>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════
+// 内容来源 / 播客风格 切换
+// Stage 3: ARIA tablist 规范化 — tabindex 管理与 aria-pressed
+// ════════════════════════════════════════
+// 切换内容来源（tablist 模式：roving tabindex）
 export function switchSource(source) {
   document.querySelectorAll('.source-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.source === source);
+    const isActive = tab.dataset.source === source;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    // roving tabindex：仅活动 tab 可聚焦
+    tab.setAttribute('tabindex', isActive ? '0' : '-1');
   });
   const reposEl = document.getElementById('sourceRepos');
   const topicEl = document.getElementById('sourceTopic');
@@ -261,10 +379,12 @@ export function switchSource(source) {
   if (topicEl) topicEl.style.display = source === 'topic' ? 'block' : 'none';
 }
 
-// 切换播客风格
+// 切换播客风格（toggle button group 模式：aria-pressed）
 export function switchStyle(style) {
   document.querySelectorAll('.style-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.style === style);
+    const isActive = tab.dataset.style === style;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
 }
 

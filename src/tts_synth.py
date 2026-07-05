@@ -2,15 +2,21 @@
 
 后端 1: SiliconFlow CosyVoice2-0.5B（OpenAI 兼容 /audio/speech）
 后端 2: 阿里云百炼 dashscope（CosyVoice v3）
-后端 3: mock 静音占位（无 API Key 时）
+后端 3: edge-tts 微软 Edge 在线语音（免费，无需 API Key）
+后端 4: mock 静音占位（edge-tts 也失败时的最终降级）
 
 SiliconFlow 系统预置音色：
   男声: alex(沉稳) benjamin(低沉) charles(磁性) david(欢快)
   女声: anna(沉稳) bella(激情) claire(温柔) diana(欢快)
 音色格式: "FunAudioLLM/CosyVoice2-0.5B:alex"
+
+edge-tts 中文神经语音（免费）：
+  男声: zh-CN-YunxiNeural(对话) zh-CN-YunjianNeural(播音)
+  女声: zh-CN-XiaoxiaoNeural(对话) zh-CN-XiaoyiNeural(温暖)
 """
 from __future__ import annotations
 
+import asyncio
 import random
 import re
 import wave
@@ -18,6 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from .models import PodcastScript, PodcastSegment
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 # 情感标签映射（emotion -> CosyVoice 情感指令）
 EMOTION_MAP = {
@@ -27,6 +37,22 @@ EMOTION_MAP = {
     "sad": "难过地",
     "neutral": "",
     "angry": "生气地",
+}
+
+# edge-tts 情感参数映射（rate/pitch 调整）
+EDGE_EMOTION_PARAMS = {
+    "excited": {"rate": "+15%", "pitch": "+10Hz"},
+    "happy": {"rate": "+10%", "pitch": "+5Hz"},
+    "curious": {"rate": "-5%", "pitch": "+3Hz"},
+    "sad": {"rate": "-20%", "pitch": "-10Hz"},
+    "neutral": {},
+    "angry": {"rate": "+20%", "pitch": "+15Hz"},
+}
+
+# edge-tts 默认音色映射
+EDGE_VOICE_MAPPING = {
+    "host": "zh-CN-YunxiNeural",      # 男声，对话风格
+    "guest": "zh-CN-XiaoxiaoNeural",   # 女声，对话风格
 }
 
 
@@ -48,9 +74,10 @@ class TTSSynthesizer:
         self.api_key = config["api_keys"].get("tts", "") or config["api_keys"].get("dashscope", "")
         self.base_url = self.cfg.get("base_url", "https://api.siliconflow.cn/v1")
 
-        if not self.api_key:
-            print("[tts] 警告：未配置 TTS API Key，将使用 mock 模式（静音占位）")
-            self.provider = "mock"
+        # 无 API Key 时优先使用 edge-tts（免费），而非 mock 静音
+        if not self.api_key and self.provider not in ("edge", "mock"):
+            logger.warning("未配置 TTS API Key，尝试使用 edge-tts（免费，无需 API Key）")
+            self.provider = "edge"
 
         # 初始化后端客户端
         self._client = None
@@ -62,18 +89,27 @@ class TTSSynthesizer:
                     base_url=self.base_url,
                     timeout=60,
                 )
-                print(f"[tts] 使用 SiliconFlow TTS（{self.model}）")
-            except Exception:
-                print("[tts] openai 未安装，使用 mock 模式")
-                self.provider = "mock"
+                logger.info(f"使用 SiliconFlow TTS（{self.model}）")
+            except Exception as e:
+                logger.warning("TTS 调用失败: %s", e)
+                self.provider = "edge"
         elif self.provider == "dashscope" and self.api_key:
             try:
                 import dashscope
                 dashscope.api_key = self.api_key
                 self._dashscope_ready = True
-                print(f"[tts] 使用阿里云 CosyVoice（{self.model}）")
-            except Exception:
-                print("[tts] dashscope 未安装，使用 mock 模式")
+                logger.info(f"使用阿里云 CosyVoice（{self.model}）")
+            except Exception as e:
+                logger.warning("TTS 调用失败: %s", e)
+                self.provider = "edge"
+
+        # edge-tts 后端初始化检查
+        if self.provider == "edge":
+            try:
+                import edge_tts  # noqa: F401
+                logger.info("使用 edge-tts（微软 Edge 在线语音，免费）")
+            except ImportError:
+                logger.warning("edge-tts 未安装，回退到 mock 模式（静音占位）")
                 self.provider = "mock"
 
     def synthesize_script(
@@ -92,11 +128,11 @@ class TTSSynthesizer:
             )
             self._synthesize_segment(segment, audio_path, processed_text)
             audio_files.append(str(audio_path))
-            print(
-                f"[tts] 段 {i+1}/{len(script.segments)} 完成 "
+            logger.info(
+                f"段 {i+1}/{len(script.segments)} 完成 "
                 f"({segment.speaker}, {len(segment.text)} 字)"
             )
-        print(f"[tts] 全部 {len(audio_files)} 段合成完成")
+        logger.info(f"全部 {len(audio_files)} 段合成完成")
         return audio_files
 
     # ------------------------------------------------------------------
@@ -159,6 +195,10 @@ class TTSSynthesizer:
             success = self._call_dashscope(text, segment.voice_key, segment.emotion, output_path)
             if not success:
                 self._mock_synthesize(text, output_path)
+        elif self.provider == "edge":
+            success = self._call_edge_tts(text, segment.voice_key, segment.emotion, output_path)
+            if not success:
+                self._mock_synthesize(text, output_path)
         else:
             self._mock_synthesize(text, output_path)
 
@@ -178,7 +218,7 @@ class TTSSynthesizer:
         input_text = f"{emotion_prefix}{text}" if emotion_prefix else text
 
         if self._client is None:
-            print("[tts] SiliconFlow 客户端未初始化，回退到 mock")
+            logger.warning("SiliconFlow 客户端未初始化，回退到 mock")
             return False
 
         try:
@@ -192,7 +232,7 @@ class TTSSynthesizer:
                 r.stream_to_file(output_path)
             return output_path.exists() and output_path.stat().st_size > 0
         except Exception as e:
-            print(f"[tts] SiliconFlow 调用失败: {e}")
+            logger.error(f"SiliconFlow 调用失败: {e}")
             return False
 
     # ------------------------------------------------------------------
@@ -222,11 +262,86 @@ class TTSSynthesizer:
                 return False
             return True
         except Exception as e:
-            print(f"[tts] DashScope 调用异常: {e}")
+            logger.error(f"DashScope 调用异常: {e}")
             return False
         finally:
             if collector:
                 collector.file_obj.close()
+
+    # ------------------------------------------------------------------
+    # edge-tts 后端（微软 Edge 在线语音，免费，无需 API Key）
+    # ------------------------------------------------------------------
+    def _call_edge_tts(
+        self, text: str, voice_key: str, emotion: str, output_path: Path
+    ) -> bool:
+        """调用 edge-tts 微软在线语音合成。
+
+        edge-tts 输出 MP3 流，通过 pydub 转换为 WAV 以保持与
+        SiliconFlow / DashScope 后端一致的输出格式。
+        """
+        import io
+
+        try:
+            import edge_tts
+            from pydub import AudioSegment
+        except ImportError as e:
+            logger.error(f"edge-tts 或 pydub 未安装: {e}")
+            return False
+
+        # 音色映射：优先使用配置，回退到默认映射
+        edge_voices = self.cfg.get("edge_voice_mapping", EDGE_VOICE_MAPPING)
+        voice = edge_voices.get(voice_key, EDGE_VOICE_MAPPING.get(voice_key, "zh-CN-YunxiNeural"))
+
+        # 情感 → rate/pitch 参数
+        params = EDGE_EMOTION_PARAMS.get(emotion, {})
+        rate = params.get("rate", "+0%")
+        pitch = params.get("pitch", "+0Hz")
+
+        async def _synthesize() -> io.BytesIO:
+            """异步合成：收集 MP3 音频流到内存缓冲区。"""
+            communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+            buffer = io.BytesIO()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    buffer.write(chunk["data"])
+            buffer.seek(0)
+            return buffer
+
+        try:
+            mp3_buffer = asyncio.run(_synthesize())
+        except RuntimeError:
+            # 若已有事件循环运行中，使用新线程运行
+            import threading
+            result_holder: list = []
+            def _run():
+                result_holder.append(asyncio.run(_synthesize()))
+            t = threading.Thread(target=_run)
+            t.start()
+            t.join()
+            mp3_buffer = result_holder[0] if result_holder else io.BytesIO()
+        except Exception as e:
+            logger.error(f"edge-tts 合成异常: {e}")
+            return False
+
+        if mp3_buffer.getbuffer().nbytes == 0:
+            logger.warning("edge-tts 返回空音频")
+            return False
+
+        try:
+            # MP3 → WAV 转换（单声道、目标采样率、16-bit）
+            audio = AudioSegment.from_file(mp3_buffer, format="mp3")
+            audio = (
+                audio
+                .set_frame_rate(self.sample_rate)
+                .set_channels(1)
+                .set_sample_width(2)
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            audio.export(str(output_path), format="wav")
+            return output_path.exists() and output_path.stat().st_size > 0
+        except Exception as e:
+            logger.error(f"edge-tts MP3→WAV 转换失败: {e}")
+            return False
 
     # ------------------------------------------------------------------
     # Mock 后端
@@ -283,7 +398,7 @@ class _WavCollector:
             self._patch_wav_header()
 
     def on_error(self, message):
-        print(f"[tts] CosyVoice 错误: {message}")
+        logger.error(f"CosyVoice 错误: {message}")
 
     def on_close(self):
         if self._header_written:

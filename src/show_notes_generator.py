@@ -4,10 +4,10 @@
 摘要/亮点/时间戳/金句/嘉宾简介/链接）的 show notes 生成方法。
 
 复用 config["llm"] 的 API 配置（base_url / model / api_key / enable_thinking 等），
+通过 instructor + ShowNotesLLM 实现结构化输出（替代手写 JSON 容错解析），
 与 ProjectAnalyzer / ScriptGenerator 保持一致的初始化与错误处理模式：
   - 无 API Key → 返回 mock 节目笔记
   - API 调用失败 → 回退到规则提取（从片段文本生成简单要点）
-  - JSON mode 不被支持 → 去掉 response_format 重试
   - SiliconFlow Qwen3.5 系列通过 enable_thinking=false 关闭思考模式
 
 生成内容分两类：
@@ -20,13 +20,15 @@
 """
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
-from openai import OpenAI
-
+from .llm_helper import LLMClientMixin
+from .llm_models import ShowNotesLLM
 from .models import PodcastScript, GitHubRepo, ProjectAnalysis, ShowNotes, Chapter
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 _SHOW_NOTES_SYSTEM_PROMPT = (
@@ -35,7 +37,7 @@ _SHOW_NOTES_SYSTEM_PROMPT = (
 )
 
 
-class ShowNotesGenerator:
+class ShowNotesGenerator(LLMClientMixin):
     """从播客脚本和项目数据生成结构化节目笔记。
 
     规则部分始终可用（项目链接 / 时间戳 / 技术栈），LLM 部分在配置了
@@ -43,24 +45,7 @@ class ShowNotesGenerator:
     """
 
     def __init__(self, config: dict[str, Any]):
-        self.cfg = config["llm"]
-        self.project_root = config.get("project_root", ".")
-        # 优先使用通用 LLM key（与 ProjectAnalyzer / ScriptGenerator 一致）
-        self.api_key = (
-            config["api_keys"].get("llm", "")
-            or config["api_keys"].get("deepseek", "")
-        )
-        # 是否需要关闭 thinking 模式（SiliconFlow Qwen3.5 系列）
-        self.enable_thinking = self.cfg.get("enable_thinking", None)
-
-        if not self.api_key:
-            print("[show_notes] 警告：未配置 LLM API Key，将使用 mock 模式")
-
-        self.client = OpenAI(
-            api_key=self.api_key or "mock-key",
-            base_url=self.cfg["base_url"],
-            timeout=self.cfg.get("timeout", 120),
-        )
+        self._init_llm(config)
 
     # ------------------------------------------------------------------
     # 公共 API
@@ -182,7 +167,7 @@ class ShowNotesGenerator:
         """调用 LLM 提取关键要点、金句、摘要；失败回退到规则提取。
 
         输入：脚本标题、描述、前 3000 字片段文本。
-        输出 JSON：{"key_takeaways": [...], "social_quotes": [...], "summary": "..."}
+        通过 instructor + ShowNotesLLM 实现结构化输出，无需手写 JSON 解析。
         """
         segment_texts = " ".join(seg.text for seg in script.segments)
         user_content = (
@@ -191,58 +176,29 @@ class ShowNotesGenerator:
             f"脚本内容（前3000字）：\n{segment_texts[:3000]}"
         )
 
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": _SHOW_NOTES_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.3,
-            "max_tokens": 1000,
-            "response_format": {"type": "json_object"},
-        }
-
-        # SiliconFlow Qwen3.5 需关闭 thinking 模式
-        if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-            print("[show_notes] 已关闭 thinking 模式（enable_thinking=false）")
-
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            data = json.loads(self._extract_json(raw))
-            takeaways = self._as_str_list(data.get("key_takeaways"))
-            quotes = self._as_str_list(data.get("social_quotes"))
-            summary = str(data.get("summary", "")).strip() or script.description
-            print(
-                f"[show_notes] LLM 提取完成：{len(takeaways)} 要点 / "
+            result = self.client.chat.completions.create(
+                response_model=ShowNotesLLM,
+                messages=[
+                    {"role": "system", "content": _SHOW_NOTES_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.3,
+                max_tokens=1000,
+                **self.build_llm_kwargs(),
+            )
+            takeaways = self._as_str_list(result.key_takeaways)
+            quotes = self._as_str_list(result.social_quotes)
+            summary = str(result.summary).strip() or script.description
+            logger.info(
+                f"LLM 提取完成：{len(takeaways)} 要点 / "
                 f"{len(quotes)} 金句"
             )
             return takeaways, quotes, summary
         except Exception as e:
-            print(f"[show_notes] LLM 提取失败: {e}")
-            # 某些模型不支持 JSON mode → 去掉 response_format 重试
-            if "response_format" in str(e).lower() or "json" in str(e).lower():
-                print("[show_notes] 尝试不带 JSON mode 重试...")
-                kwargs.pop("response_format", None)
-                if self.enable_thinking is False:
-                    kwargs["extra_body"] = {"enable_thinking": False}
-                try:
-                    response = self.client.chat.completions.create(**kwargs)
-                    raw = response.choices[0].message.content or ""
-                    data = json.loads(self._extract_json(raw))
-                    takeaways = self._as_str_list(data.get("key_takeaways"))
-                    quotes = self._as_str_list(data.get("social_quotes"))
-                    summary = str(data.get("summary", "")).strip() or script.description
-                    print(
-                        f"[show_notes] 重试成功：{len(takeaways)} 要点 / "
-                        f"{len(quotes)} 金句"
-                    )
-                    return takeaways, quotes, summary
-                except Exception as e2:
-                    print(f"[show_notes] 重试失败: {e2}")
+            logger.error(f"LLM 提取失败: {e}")
             # 回退规则提取
-            print("[show_notes] 回退到规则提取要点")
+            logger.warning("回退到规则提取要点")
             return self._fallback_takeaways(script), [], script.description
 
     @staticmethod
@@ -273,19 +229,6 @@ class ShowNotesGenerator:
         if isinstance(val, str) and val.strip():
             return [val.strip()]
         return []
-
-    @staticmethod
-    def _extract_json(raw: str) -> str:
-        """容错提取首个 JSON 对象文本（去除 markdown 代码块包裹）。"""
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-        if not raw.startswith("{"):
-            match = re.search(r"\{[\s\S]*\}", raw)
-            if match:
-                raw = match.group(0)
-        return raw
 
     # ------------------------------------------------------------------
     # Mock

@@ -2,14 +2,21 @@
 # Python >= 3.10
 
 # --- LLM 脚本生成 ---
-openai>=1.30.0          # DeepSeek 使用 OpenAI 兼容 SDK
+openai>=1.30.0          # OpenAI 兼容 SDK（SiliconFlow / DeepSeek）
+instructor>=1.0.0       # LLM 结构化输出（Pydantic 校验 + 自动重试）
+pydantic>=2.0.0         # Pydantic v2 模型定义（instructor 依赖）
 
 # --- TTS 语音合成 ---
 dashscope>=1.20.0       # 阿里云百炼 CosyVoice SDK
+edge-tts>=7.0.0         # 微软 Edge 在线 TTS（免费，无需 API Key）
 
 # --- 项目发现 ---
 feedparser>=6.0.11      # RSSHub RSS 解析
-requests>=2.31.0        # HTTP 请求
+requests>=2.31.0        # HTTP 请求（Jina Reader 等）
+PyGithub>=2.0.0         # GitHub API 客户端（替代手写 REST 调用）
+
+# --- 全文搜索 ---
+tantivy>=0.22.0         # Rust 全文搜索引擎（BM25 评分 + 倒排索引）
 
 # --- 音频处理 ---
 pydub>=0.25.1           # 音频拼接
@@ -22,6 +29,7 @@ pyyaml>=6.0.1           # YAML 配置
 python-dotenv>=1.0.1    # .env 环境变量
 click>=8.1.7            # CLI 框架
 rich>=13.7.1            # 终端美化输出
+huey>=2.5.0             # 轻量级任务队列（SqliteHuey，无需 Redis）
 
 # --- RSS 发布 ---
 feedgen>=1.0.0          # 播客 RSS feed 生成

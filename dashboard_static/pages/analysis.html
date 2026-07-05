@@ -2,12 +2,34 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d14" id="theme-color-meta">
 <title>项目深度分析 · GitHub 播客工具</title>
+<meta name="description" content="对 GitHub 前沿项目进行深度技术分析，包含架构设计、代码指标、健康度评估和项目对比。">
+<meta name="keywords" content="GitHub, 项目分析, 代码分析, 架构设计, 技术评估, 开源项目">
+<meta name="author" content="GitHub 播客工具">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="/analysis">
+<meta property="og:title" content="项目深度分析 · GitHub 播客工具">
+<meta property="og:description" content="对 GitHub 前沿项目进行深度技术分析">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GitHub 播客工具">
+<meta property="og:url" content="/analysis">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="项目深度分析 · GitHub 播客工具">
+<meta name="twitter:description" content="对 GitHub 前沿项目进行深度技术分析">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"/"},{"@type":"ListItem","position":2,"name":"项目深度分析","item":"/analysis"}]}
+</script>
 <link rel="stylesheet" href="/css/theme.css">
 <link rel="stylesheet" href="/css/layout.css">
 <link rel="stylesheet" href="/css/components.css">
 <link rel="stylesheet" href="/css/analysis.css">
+<link rel="stylesheet" href="/css/ui-optimizations.css">
+
+<!-- Stage 11: 资源预加载 — 加速 CDN 连接建立 -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
 <!-- Mermaid.js：架构图渲染（dark 主题） -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -17,26 +39,27 @@
 </head>
 <body>
 
+<a href="#main-content" class="skip-link">跳到主内容</a>
 <div id="nav-container"></div>
 
-<div class="container">
+<main class="container" id="main-content">
 
-  <div class="page-header">
-    <div class="section-title" style="margin-top:0;">
+  <header class="page-header">
+    <h1 class="section-title" style="margin-top:0;">
       <span class="dot"></span> 项目深度分析
-    </div>
+    </h1>
     <p class="page-subtitle">基于 zread.ai 风格的项目结构化解读 — 涵盖技术栈、架构设计、关键模块、快速上手与应用场景</p>
-  </div>
+  </header>
 
   <!-- 分析列表容器：由 JS 加载所有期数的分析数据 -->
-  <div id="analysisList">
+  <div id="analysisList" aria-live="polite">
     <div class="empty-state">
       <div class="icon">📭</div>
       <div>暂无分析数据</div>
     </div>
   </div>
 
-</div>
+</main>
 
 <script type="module" src="/js/app.js"></script>
 <script type="module" src="/js/pages/analysis.js"></script>

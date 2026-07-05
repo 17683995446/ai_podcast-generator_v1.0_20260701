@@ -171,6 +171,29 @@ class DependencyInfo:
 
 
 @dataclass
+class EvidenceItem:
+    """证据项——记录某条分析结论的数据来源。
+
+    核心设计：让用户能区分"这是项目真实数据"还是"AI 推测"。
+    每条技术栈、关键模块、架构判断都可以关联一个或多个证据来源。
+    """
+    field: str = ""                    # 所属分析字段：tech_stack / key_modules / architecture 等
+    value: str = ""                    # 被标注的分析值，如 "Python" / "core module"
+    source_type: str = ""              # 来源类型：file_tree / dependency_file / source_code / commit_history / release_notes / readme / llm_inference
+    source_detail: str = ""            # 来源详情：如 "requirements.txt" / "src/main.py" / "README.md#L12"
+    confidence: str = "verified"       # 置信度：verified（已验证）/ inferred（推断）/ unverified（未验证）
+
+    def to_dict(self) -> dict:
+        return {
+            "field": self.field,
+            "value": self.value,
+            "source_type": self.source_type,
+            "source_detail": self.source_detail,
+            "confidence": self.confidence,
+        }
+
+
+@dataclass
 class ProjectAnalysis:
     """单个 GitHub 项目的深度分析结果（类似 zread.ai 的项目解读）。"""
     repo_name: str
@@ -189,6 +212,8 @@ class ProjectAnalysis:
     commit_narrative: str = ""           # Commit 演进叙事
     review_score: float = 0.0            # 评审回路评分
     review_passed: bool = True           # 评审是否通过
+    evidence_sources: list[dict] = field(default_factory=list)  # 证据来源列表（EvidenceItem.to_dict()）
+    code_metrics: dict = field(default_factory=dict)  # 代码级分析指标（CodeMetrics.to_dict()）
 
     def to_dict(self) -> dict:
         """序列化为可存储的 dict。"""
@@ -208,6 +233,8 @@ class ProjectAnalysis:
             "commit_narrative": self.commit_narrative,
             "review_score": self.review_score,
             "review_passed": self.review_passed,
+            "evidence_sources": self.evidence_sources,
+            "code_metrics": self.code_metrics,
         }
 
     @classmethod
@@ -229,6 +256,8 @@ class ProjectAnalysis:
             commit_narrative=data.get("commit_narrative", ""),
             review_score=data.get("review_score", 0.0),
             review_passed=data.get("review_passed", True),
+            evidence_sources=data.get("evidence_sources", []),
+            code_metrics=data.get("code_metrics", {}),
         )
 
 

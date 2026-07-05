@@ -1,81 +1,35 @@
-"""LLM 脚本生成模块：将项目 README 转为播客对话脚本。
+"""LLM 驱动的播客脚本生成器。
 
-支持任意 OpenAI 兼容 API（SiliconFlow / DeepSeek / 智谱 / OpenAI 等）。
-SiliconFlow 免费 Qwen3.5-9B 需通过 enable_thinking=false 关闭思考模式。
+使用 instructor + Pydantic 实现结构化输出，替代手写 JSON 容错解析。
+支持两步生成（大纲→完整脚本）、多风格预设、长内容模式、多智能体评审回路。
 """
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
-
+from .llm_helper import LLMClientMixin
+from .llm_models import ScriptLLM, OutlineLLM
 from .models import GitHubRepo, PodcastHost, PodcastScript, PodcastSegment
 
+from src.logger import get_logger
 
-# 播客脚本 JSON Schema（response_format 用）
-PODCAST_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "title": {"type": "string"},
-        "description": {"type": "string"},
-        "hosts": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "persona": {"type": "string"},
-                    "voice_key": {"type": "string"},
-                },
-                "required": ["name", "persona", "voice_key"],
-            },
-        },
-        "segments": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "speaker": {"type": "string"},
-                    "text": {"type": "string"},
-                    "emotion": {"type": "string"},
-                    "voice_key": {"type": "string"},
-                },
-                "required": ["speaker", "text", "emotion", "voice_key"],
-            },
-        },
-    },
-    "required": ["title", "description", "hosts", "segments"],
-}
+logger = get_logger(__name__)
 
 
-class ScriptGenerator:
-    """调用 LLM 生成播客脚本。"""
+class ScriptGenerator(LLMClientMixin):
+    """播客脚本生成器（LLM 驱动）。"""
 
-    def __init__(self, config: dict[str, Any]):
-        self.cfg = config["llm"]
-        self.project_root = Path(config["project_root"])
+    def __init__(self, config: dict):
+        self._init_llm(config)
         # 保存完整配置，供 ScriptCritic 等子智能体复用
         self._full_config = config
-        # 优先使用通用 LLM key
-        self.api_key = config["api_keys"].get("llm", "") or config["api_keys"].get("deepseek", "")
-        # 是否需要关闭 thinking 模式（SiliconFlow Qwen3.5 系列）
-        self.enable_thinking = self.cfg.get("enable_thinking", None)
+        self.cfg = config["llm"]
         self._system_prompt: str | None = None
         # 播客风格预设（借鉴 Podcastfy 的对话定制）
         self.style = config.get("podcast_style", "casual")
         self.longform = config.get("longform", False)
-
-        if not self.api_key:
-            print("[llm] 警告：未配置 LLM API Key，将使用 mock 模式")
-
-        self.client = OpenAI(
-            api_key=self.api_key or "mock-key",
-            base_url=self.cfg["base_url"],
-            timeout=self.cfg.get("timeout", 120),
-        )
 
     @property
     def system_prompt(self) -> str:
@@ -87,6 +41,10 @@ class ScriptGenerator:
             else:
                 self._system_prompt = _DEFAULT_SYSTEM_PROMPT
         return self._system_prompt
+
+    @property
+    def project_root(self) -> Path:
+        return Path(self._full_config.get("project_root", "."))
 
     def _get_style_addon(self) -> str:
         """根据风格预设返回额外的 prompt 指导。"""
@@ -139,9 +97,9 @@ class ScriptGenerator:
         if outline:
             outline_text = json.dumps(outline, ensure_ascii=False, indent=2)
             user_content += f"\n\n## 节目大纲（请基于此大纲展开详细对话）\n{outline_text}"
-            print(f"[llm] 步骤2: 基于大纲生成完整脚本...")
+            logger.info(f"步骤2: 基于大纲生成完整脚本...")
 
-        print(f"[llm] 调用 {self.cfg['model']}，输入 {len(user_content)} 字符...")
+        logger.info(f"调用 {self.meta['model']}，输入 {len(user_content)} 字符...")
 
         # 根据风格和长内容模式调整 system prompt
         system_content = self.system_prompt
@@ -151,7 +109,6 @@ class ScriptGenerator:
         if self.longform:
             system_content += "\n\n## 长内容模式\n本期为长内容播客（目标 25-40 分钟），请生成 40-60 段对话，总字数 6000-10000 字。每个项目需要更深入的讨论，包括更多技术细节、实际代码示例解读、社区生态分析。"
         else:
-            # 常规播客规格：由代码统一控制段数/字数，避免与系统提示词中的硬编码冲突
             system_content += "\n\n## 节目规格\n本期为常规播客（目标 5-8 分钟），请生成 15-30 段对话，总字数 1800-3000 字。"
 
         # longform 模式下增加 max_tokens
@@ -159,36 +116,30 @@ class ScriptGenerator:
         if self.longform:
             max_tokens = min(max_tokens * 2, 8000)  # 长内容模式翻倍
 
-        # 构建请求参数
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": self.cfg.get("temperature", 0.8),
-            "max_tokens": max_tokens,
-            "response_format": {"type": "json_object"},
-        }
-
-        # SiliconFlow Qwen3.5 需关闭 thinking 模式
         if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-            print("[llm] 已关闭 thinking 模式（enable_thinking=false）")
+            logger.info("已关闭 thinking 模式（enable_thinking=false）")
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            script = self._parse_script(raw, repos)
-            # 回填生成时的元信息（供 RSS show notes / chapters 使用）
+            script_llm, completion = self.client.chat.completions.create_with_completion(
+                response_model=ScriptLLM,
+                messages=[
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=self.cfg.get("temperature", 0.8),
+                max_tokens=max_tokens,
+                **self.build_llm_kwargs(),
+            )
+            script = self._llm_to_script(script_llm, repos)
             script.outline = outline or {}
             script.repo_urls = [r.url for r in repos]
             script.style = self.style
             script.target_minutes = 30 if self.longform else 8
-            usage = response.usage
+
+            usage = completion.usage
             if usage:
-                print(
-                    f"[llm] 完成：tokens 输入 {usage.prompt_tokens} / "
+                logger.info(
+                    f"完成：tokens 输入 {usage.prompt_tokens} / "
                     f"输出 {usage.completion_tokens}"
                 )
 
@@ -201,48 +152,39 @@ class ScriptGenerator:
                 script.critic_score = result.get("overall_score", 0)
                 script.critic_feedback = result.get("feedback", "")
                 if result.get("passed", True):
-                    print(f"[llm] 脚本评审通过（第{rev+1}轮），分数 {script.critic_score}/10")
+                    logger.info(f"脚本评审通过（第{rev+1}轮），分数 {script.critic_score}/10")
                     break
                 if rev < max_revisions - 1:
-                    print(f"[llm] 脚本评审未通过（第{rev+1}轮），分数 {script.critic_score}/10，重写中...")
+                    logger.warning(f"脚本评审未通过（第{rev+1}轮），分数 {script.critic_score}/10，重写中...")
                     # 将评审反馈追加到用户内容并重新生成
                     feedback_text = result.get("feedback", "")
                     user_content_with_feedback = user_content + f"\n\n## 评审反馈（请据此改进）\n{feedback_text}\n\n请基于以上反馈重新生成更高质量的脚本。"
-                    # 用带反馈的消息重建请求参数
-                    kwargs["messages"] = [
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content_with_feedback},
-                    ]
                     try:
-                        response = self.client.chat.completions.create(**kwargs)
-                        raw = response.choices[0].message.content or ""
-                        script = self._parse_script(raw, repos)
+                        script_llm, _ = self.client.chat.completions.create_with_completion(
+                            response_model=ScriptLLM,
+                            messages=[
+                                {"role": "system", "content": system_content},
+                                {"role": "user", "content": user_content_with_feedback},
+                            ],
+                            temperature=self.cfg.get("temperature", 0.8),
+                            max_tokens=max_tokens,
+                            **self.build_llm_kwargs(),
+                        )
+                        script = self._llm_to_script(script_llm, repos)
                         script.outline = outline or {}
                         script.repo_urls = [r.url for r in repos]
                         script.style = self.style
                         script.target_minutes = 30 if self.longform else 8
                     except Exception as e:
-                        print(f"[llm] 重写失败: {e}")
+                        logger.error(f"重写失败: {e}")
                         break
                 else:
-                    print(f"[llm] 脚本评审已达最大轮次，分数 {script.critic_score}/10")
+                    logger.warning(f"脚本评审已达最大轮次，分数 {script.critic_score}/10")
 
             return script
         except Exception as e:
-            print(f"[llm] API 调用失败: {e}")
-            # 尝试不带 response_format 重试（某些模型不支持 JSON mode）
-            if "response_format" in str(e).lower() or "json" in str(e).lower():
-                print("[llm] 尝试不带 JSON mode 重试...")
-                kwargs.pop("response_format", None)
-                if self.enable_thinking is False:
-                    kwargs["extra_body"] = {"enable_thinking": False}
-                try:
-                    response = self.client.chat.completions.create(**kwargs)
-                    raw = response.choices[0].message.content or ""
-                    return self._parse_script(raw, repos)
-                except Exception as e2:
-                    print(f"[llm] 重试失败: {e2}")
-            print("[llm] 回退到 mock 脚本")
+            logger.error(f"API 调用失败: {e}")
+            logger.warning("回退到 mock 脚本")
             return self._mock_script(repos)
 
     def _build_user_content(self, repos: list[GitHubRepo]) -> str:
@@ -275,37 +217,30 @@ class ScriptGenerator:
             return {}
 
         user_content = self._build_outline_content(repos)
-        print(f"[llm] 步骤1: 生成节目大纲...")
-
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": "你是一位资深播客制作人。请根据以下项目信息，生成一期播客的结构大纲。输出JSON格式，包含：title（标题）、sections（章节列表，每章含 title 和 key_points 数组）。"},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.6,
-            "max_tokens": 2000,
-            "response_format": {"type": "json_object"},
-        }
-        if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
+        logger.info(f"步骤1: 生成节目大纲...")
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            raw = raw.strip()
-            if raw.startswith("```"):
-                raw = re.sub(r"^```(?:json)?\s*", "", raw)
-                raw = re.sub(r"\s*```$", "", raw)
-            if not raw.startswith("{"):
-                match = re.search(r"\{[\s\S]*\}", raw)
-                if match:
-                    raw = match.group(0)
-            outline = json.loads(raw)
-            print(f"[llm] 大纲完成: {outline.get('title', '')[:40]}, {len(outline.get('sections', []))} 章节")
+            outline_llm = self.client.chat.completions.create(
+                response_model=OutlineLLM,
+                messages=[
+                    {"role": "system", "content": "你是一位资深播客制作人。请根据以下项目信息，生成一期播客的结构大纲。输出JSON格式，包含：title（标题）、sections（章节列表，每章含 title 和 key_points 数组）。"},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.6,
+                max_tokens=2000,
+                **self.build_llm_kwargs(),
+            )
+            outline = {
+                "title": outline_llm.title,
+                "sections": [
+                    {"title": s.title, "key_points": s.key_points}
+                    for s in outline_llm.sections
+                ],
+            }
+            logger.info(f"大纲完成: {outline.get('title', '')[:40]}, {len(outline.get('sections', []))} 章节")
             return outline
         except Exception as e:
-            print(f"[llm] 大纲生成失败: {e}")
+            logger.error(f"大纲生成失败: {e}")
             return {}
 
     def _build_outline_content(self, repos: list[GitHubRepo]) -> str:
@@ -324,27 +259,15 @@ class ScriptGenerator:
         parts.append("\n请生成包含开场、每项目讨论（2-3个关键讨论点）、总结收尾的大纲。")
         return "\n".join(parts)
 
-    def _parse_script(self, raw: str, repos: list[GitHubRepo]) -> PodcastScript:
-        """解析 LLM 返回的 JSON 为 PodcastScript。"""
-        raw = raw.strip()
-        # 容错：提取 JSON 块
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-        # 尝试提取第一个 JSON 对象
-        if not raw.startswith("{"):
-            match = re.search(r"\{[\s\S]*\}", raw)
-            if match:
-                raw = match.group(0)
-        data = json.loads(raw)
-
+    def _llm_to_script(self, llm: ScriptLLM, repos: list[GitHubRepo]) -> PodcastScript:
+        """将 instructor 返回的 Pydantic 模型转换为 PodcastScript dataclass。"""
         hosts = [
             PodcastHost(
-                name=h["name"],
-                persona=h.get("persona", ""),
-                voice_key=h.get("voice_key", "host"),
+                name=h.name,
+                persona=h.persona,
+                voice_key=h.voice_key,
             )
-            for h in data.get("hosts", [])
+            for h in llm.hosts
         ]
         if not hosts:
             hosts = [
@@ -354,9 +277,9 @@ class ScriptGenerator:
 
         host_names = {h.name for h in hosts}
         segments: list[PodcastSegment] = []
-        for seg in data.get("segments", []):
-            speaker = seg.get("speaker", "")
-            voice_key = seg.get("voice_key", "host")
+        for seg in llm.segments:
+            speaker = seg.speaker
+            voice_key = seg.voice_key
             for h in hosts:
                 if h.name == speaker:
                     voice_key = h.voice_key
@@ -366,15 +289,15 @@ class ScriptGenerator:
             segments.append(
                 PodcastSegment(
                     speaker=speaker,
-                    text=seg.get("text", "").strip(),
-                    emotion=seg.get("emotion", "neutral"),
+                    text=seg.text.strip(),
+                    emotion=seg.emotion,
                     voice_key=voice_key,
                 )
             )
 
         return PodcastScript(
-            title=data.get("title", "GitHub 前沿观察"),
-            description=data.get("description", ""),
+            title=llm.title,
+            description=llm.description,
             hosts=hosts,
             segments=segments,
             repo_names=[r.name for r in repos],

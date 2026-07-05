@@ -5,6 +5,12 @@
 import { renderNav, getCurrentPath } from './nav.js';
 import { POLL_INTERVAL } from './constants.js';
 
+// 全局清理函数追踪
+// 解决问题：首次完整加载时，HTML <script> 加载的初始页面模块不受 SPA router 追踪，
+// 导致导航到其他页面时初始页面的事件监听器不会被清理，造成重复 handler 冲突。
+// 每次 init() 前自动调用上一页的 cleanup()，确保旧监听器被移除。
+let _globalCleanup = null;
+
 /**
  * 创建标准化页面实例
  * @param {Object} opts
@@ -46,10 +52,16 @@ export function createPage({ init, onCleanup }) {
     },
   };
 
-  return {
+  const pageObj = {
     async init() {
       if (_initialized) return;
       _initialized = true;
+      // 清理上一页的资源（处理 SPA 首次导航时 router 未追踪初始页面的情况）
+      // router 的 currentCleanup 为 null 时，这里作为兜底确保旧监听器被移除
+      if (_globalCleanup) {
+        try { _globalCleanup(); } catch (e) { console.warn('上一页清理失败:', e); }
+      }
+      _globalCleanup = pageObj.cleanup;
       renderNav(getCurrentPath());
       await init(ctx);
     },
@@ -68,4 +80,6 @@ export function createPage({ init, onCleanup }) {
       _initialized = false;
     },
   };
+
+  return pageObj;
 }

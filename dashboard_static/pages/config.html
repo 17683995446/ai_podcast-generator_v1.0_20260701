@@ -2,30 +2,47 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d14" id="theme-color-meta">
 <title>配置 · GitHub 播客工具</title>
+<meta name="description" content="查看和管理 GitHub 播客工具的 LLM、TTS 和项目发现配置。">
+<meta name="keywords" content="GitHub, 播客, 配置, LLM, TTS, API">
+<meta name="author" content="GitHub 播客工具">
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="/config">
+<meta property="og:title" content="配置 · GitHub 播客工具">
+<meta property="og:description" content="查看和管理 GitHub 播客工具配置">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GitHub 播客工具">
+<meta property="og:url" content="/config">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="配置 · GitHub 播客工具">
+<meta name="twitter:description" content="查看和管理 GitHub 播客工具配置">
 <link rel="stylesheet" href="/css/theme.css">
 <link rel="stylesheet" href="/css/layout.css">
 <link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/config.css">
+<link rel="stylesheet" href="/css/ui-optimizations.css">
 </head>
 <body>
 
+<a href="#main-content" class="skip-link">跳到主内容</a>
 <div id="nav-container"></div>
 
-<div class="container">
+<main class="container" id="main-content">
 
-  <div class="page-header">
-    <div class="section-title" style="margin-top:0;">
+  <header class="page-header">
+    <h1 class="section-title" style="margin-top:0;">
       <span class="dot"></span> 配置
-    </div>
+    </h1>
     <p class="page-subtitle">查看当前系统配置和 RSS 订阅信息</p>
-  </div>
+  </header>
 
   <!-- 配置 + RSS 链接（左右布局） -->
   <div class="grid grid-main">
     <div class="card">
       <div class="card-title"><span>当前配置</span></div>
-      <div id="configPanel"><div class="log-empty">加载中...</div></div>
+      <div id="configPanel" aria-live="polite"><div class="log-empty">加载中...</div></div>
     </div>
     <div class="card">
       <div class="card-title"><span>RSS 订阅 & 链接</span></div>
@@ -72,7 +89,7 @@
     </div>
   </div>
 
-</div>
+</main>
 
 <script type="module" src="/js/app.js"></script>
 <script type="module" src="/js/pages/config.js"></script>

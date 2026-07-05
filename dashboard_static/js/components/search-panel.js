@@ -5,6 +5,8 @@
 import { api } from '../api.js';
 import { escapeHtml } from '../utils.js';
 import { playEpisode, getCurrentPlaying } from '../player.js';
+import { debounce } from '../utils/lodash-loader.js';
+import { highlightKeyword, highlightInContainer } from '../utils/mark-highlight.js';
 
 /** 防抖延迟（毫秒） */
 const DEBOUNCE_MS = 300;
@@ -30,8 +32,7 @@ export async function initSearchPanel(ctx) {
 
   if (!input || !resultsBox) return;
 
-  // ── 防抖搜索 ──
-  let debounceTimer = null;
+  // ── 防抖搜索（使用 lodash debounce） ──
   let lastQuery = '';
 
   const doSearch = async (query) => {
@@ -60,16 +61,16 @@ export async function initSearchPanel(ctx) {
     }
   };
 
-  // 输入事件（防抖）
+  // 输入事件（lodash debounce 替代手写 clearTimeout + setTimeout）
+  const debouncedDoSearch = debounce((value) => doSearch(value), DEBOUNCE_MS);
   ctx.addListener(input, 'input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = ctx.setTimeout(() => doSearch(input.value), DEBOUNCE_MS);
+    debouncedDoSearch(input.value);
   });
 
-  // 回车立即搜索
+  // 回车立即搜索（取消防抖，直接执行）
   ctx.addListener(input, 'keydown', (e) => {
     if (e.key === 'Enter') {
-      clearTimeout(debounceTimer);
+      debouncedDoSearch.cancel();
       doSearch(input.value);
     }
   });
@@ -105,8 +106,13 @@ export async function initSearchPanel(ctx) {
         break;
       }
       case 'view-episode': {
-        // 跳转到节目库页面
-        window.location.href = '/episodes';
+        // P4修复：跳转到节目库页面并定位到具体节目
+        const epNum = btn.dataset.ep;
+        if (epNum) {
+          window.location.href = `/episodes#ep${epNum}`;
+        } else {
+          window.location.href = '/episodes';
+        }
         break;
       }
     }
@@ -204,7 +210,7 @@ function renderResults(box, results, query) {
                     data-url="${audioUrl}" data-title="${escapeHtml(r.title)}">
               ${isPlaying ? '⏸ 暂停' : '▶ 播放'}
             </button>
-            <a class="btn btn-secondary btn-sm" data-action="view-episode" href="/episodes">查看详情</a>
+            <a class="btn btn-secondary btn-sm" data-action="view-episode" data-ep="${r.episode_number}" href="/episodes#ep${r.episode_number}">查看详情</a>
           </div>
         </div>
         <div class="search-result-meta">
@@ -223,14 +229,11 @@ function renderResults(box, results, query) {
     </div>
     ${cards}
   `;
+
+  // mark.js 后处理：对渲染后的 DOM 进行增强高亮（分词、diacritics 等高级功能）
+  if (query) {
+    highlightInContainer(box, query);
+  }
 }
 
-/**
- * 高亮关键词（在已转义的 HTML 文本中标记关键词）
- */
-function highlightKeyword(escapedText, query) {
-  if (!query) return escapedText;
-  const escapedQuery = escapeHtml(query);
-  const regex = new RegExp(`(${escapedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return escapedText.replace(regex, '<mark class="search-highlight">$1</mark>');
-}
+// ── 关键词高亮由 utils/mark-highlight.js 提供（基于 mark.js + 正则回退） ──

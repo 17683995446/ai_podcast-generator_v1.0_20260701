@@ -10,6 +10,10 @@ from typing import Any
 
 from .models import Chapter, Episode, PodcastScript
 
+from src.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class AudioMixer:
     """音频拼接与后期处理。"""
@@ -45,7 +49,7 @@ class AudioMixer:
         """
         from pydub import AudioSegment
 
-        print(f"[audio] 拼接 {len(audio_files)} 段音频...")
+        logger.info(f"拼接 {len(audio_files)} 段音频...")
 
         # 1. 加载并拼接段落
         combined = AudioSegment.empty()
@@ -95,7 +99,7 @@ class AudioMixer:
                 transition = self._generate_transition(300)
                 combined += transition
                 current_position_ms += len(transition)
-                print(f"[mixer] 插入过渡音 @ segment {i+1}")
+                logger.info(f"插入过渡音 @ segment {i+1}")
 
         # 保存时间戳供 get_segment_timings() / generate_chapters_from_timings() 使用
         self.last_segment_timings = segment_timings
@@ -124,8 +128,8 @@ class AudioMixer:
         duration_sec = len(combined) / 1000.0
         file_size = out_path.stat().st_size
 
-        print(
-            f"[audio] 输出完成：{out_path.name} "
+        logger.info(
+            f"输出完成：{out_path.name} "
             f"({duration_sec:.1f}s, {file_size / 1024 / 1024:.2f} MB)"
         )
 
@@ -289,8 +293,8 @@ class AudioMixer:
             change = target_db - current_db
             if abs(change) > 2:  # 只在偏差大于2dB时调整
                 return seg.apply_gain(change)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("音频处理跳过: %s", e)
         return seg
 
     # ------------------------------------------------------------------
@@ -303,7 +307,7 @@ class AudioMixer:
             import numpy as np
             import pyloudnorm as pyln
         except ImportError:
-            print("[audio] pyloudnorm 未安装，跳过响度归一化")
+            logger.warning("pyloudnorm 未安装，跳过响度归一化")
             return audio
 
         try:
@@ -317,7 +321,7 @@ class AudioMixer:
 
             meter = pyln.Meter(audio.frame_rate)
             loudness = meter.integrated_loudness(samples)
-            print(f"[audio] 当前响度: {loudness:.1f} LUFS → 目标 {self.target_lufs} LUFS")
+            logger.info(f"当前响度: {loudness:.1f} LUFS → 目标 {self.target_lufs} LUFS")
 
             if loudness > -70:  # 避免对静音处理
                 samples = pyln.normalize.loudness(
@@ -339,7 +343,7 @@ class AudioMixer:
                 )
                 return normalized
         except Exception as e:
-            print(f"[audio] 响度归一化失败: {e}")
+            logger.error(f"响度归一化失败: {e}")
         return audio
 
     def _mix_bgm(self, voice_audio) -> "AudioSegment":
@@ -357,5 +361,5 @@ class AudioMixer:
             bgm = bgm - 18  # 降低 18dB
             return voice_audio.overlay(bgm)
         except Exception as e:
-            print(f"[audio] BGM 混入失败: {e}")
+            logger.error(f"BGM 混入失败: {e}")
             return voice_audio

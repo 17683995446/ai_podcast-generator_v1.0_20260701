@@ -12,6 +12,10 @@ from typing import Any
 
 from .models import Episode, PodcastScript
 
+from src.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # Podcasting 2.0 命名空间（podcast:chapters / podcast:transcript 等）
 PODCAST_NS = "https://podcastindex.org/namespace/1.0"
@@ -59,7 +63,7 @@ class RSSPublisher:
             try:
                 self.generate_chapters_json(episode)
             except Exception as e:
-                print(f"[publish] chapters JSON 生成失败: {e}")
+                logger.error(f"chapters JSON 生成失败: {e}")
 
         history.append(self._episode_to_dict(episode))
         self._save_history(history)
@@ -71,7 +75,7 @@ class RSSPublisher:
             self.feed_path.write_bytes(feed_xml)
         else:
             self.feed_path.write_text(feed_xml, encoding="utf-8")
-        print(f"[publish] RSS feed 已更新：{self.feed_path}（共 {len(history)} 期）")
+        logger.info(f"RSS feed 已更新：{self.feed_path}（共 {len(history)} 期）")
         return str(self.feed_path)
 
     # ------------------------------------------------------------------
@@ -121,7 +125,7 @@ class RSSPublisher:
         # {episode_number: {"chapters_url": ..., "transcript_url": ..., "keywords": [...]}}
         podcast2_meta: dict[int, dict] = {}
 
-        for ep in reversed(history):  # 最新的在最前
+        for ep in history:  # feedgen 内部会反转条目顺序，传入正序即得到最新在前
             fe = fg.add_entry()
             fe.id(f"episode-{ep['episode_number']}")
             fe.title(ep["title"])
@@ -143,8 +147,8 @@ class RSSPublisher:
             # iTunes episode 编号
             try:
                 fe.podcast.itunes_episode(ep["episode_number"])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("RSS 节目编号设置失败: %s", e)
 
             # Rich show notes（content:encoded，Markdown 格式）
             show_notes_md = ep.get("show_notes_markdown", "")
@@ -159,7 +163,8 @@ class RSSPublisher:
                 combined_content = f"{show_notes_md}\n\n{json_ld_script}"
                 try:
                     fe.content(combined_content, type="text/markdown")
-                except Exception:
+                except Exception as e:
+                    logger.warning("RSS content 写入失败: %s", e)
                     # 回退：将 show notes + JSON-LD 追加到 description
                     fe.description(ep["description"] + "\n\n" + combined_content)
             else:
@@ -388,7 +393,7 @@ class RSSPublisher:
         out_path.write_text(
             json.dumps(chapters_data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        print(f"[publish] chapters JSON 已生成：{out_path}")
+        logger.info(f"chapters JSON 已生成：{out_path}")
         return str(out_path)
 
     def generate_transcript_srt(
@@ -452,7 +457,7 @@ class RSSPublisher:
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"episode_{ep_num:03d}_transcript.srt"
         out_path.write_text("\n".join(lines), encoding="utf-8")
-        print(f"[publish] transcript SRT 已生成：{out_path}")
+        logger.info(f"transcript SRT 已生成：{out_path}")
         return str(out_path)
 
     # ------------------------------------------------------------------
@@ -501,7 +506,7 @@ class RSSPublisher:
         try:
             from lxml import etree
         except ImportError:
-            print("[publish] lxml 不可用，跳过 podcasting 2.0 元素注入")
+            logger.warning("lxml 不可用，跳过 podcasting 2.0 元素注入")
             return None
 
         try:
@@ -509,7 +514,7 @@ class RSSPublisher:
             etree.register_namespace("podcast", PODCAST_NS)
             root = etree.fromstring(feed_bytes)
         except Exception as e:
-            print(f"[publish] RSS XML 后处理解析失败: {e}")
+            logger.error(f"RSS XML 后处理解析失败: {e}")
             return None
 
         # itunes 命名空间（feedgen 已在根节点声明）
@@ -571,5 +576,5 @@ class RSSPublisher:
                 root, pretty_print=True, xml_declaration=True, encoding="utf-8"
             )
         except Exception as e:
-            print(f"[publish] RSS XML 后处理序列化失败: {e}")
+            logger.error(f"RSS XML 后处理序列化失败: {e}")
             return None

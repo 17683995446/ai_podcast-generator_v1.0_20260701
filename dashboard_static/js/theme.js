@@ -26,6 +26,13 @@ export function getCurrentTheme() {
   return getSystemTheme();
 }
 
+// 更新浏览器主题色（地址栏、底部工具栏颜色），消除底部白色横条
+function updateThemeColor(theme) {
+  const meta = document.getElementById('theme-color-meta');
+  if (!meta) return;
+  meta.setAttribute('content', theme === 'light' ? '#f4f5fa' : '#0b0d14');
+}
+
 // 应用主题到 DOM
 export function applyTheme(theme) {
   if (theme === 'light') {
@@ -34,6 +41,7 @@ export function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
   updateToggleButton(theme);
+  updateThemeColor(theme);
 }
 
 // 切换主题并持久化

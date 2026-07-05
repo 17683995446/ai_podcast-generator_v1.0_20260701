@@ -8,6 +8,8 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
+from . import config_defaults as D
+
 
 def load_config(config_path: str = "config.yaml") -> dict[str, Any]:
     """加载 YAML 配置，并注入 .env 环境变量。
@@ -31,27 +33,27 @@ def load_config(config_path: str = "config.yaml") -> dict[str, Any]:
     if config is None:
         config = {}
 
-    # 解析 API 密钥（支持多源 fallback）
-    sf_key = os.getenv("SILICONFLOW_API_KEY", "")
-    llm_key = os.getenv("LLM_API_KEY", "") or sf_key or os.getenv("DEEPSEEK_API_KEY", "")
-    tts_key = os.getenv("TTS_API_KEY", "") or sf_key or os.getenv("DASHSCOPE_API_KEY", "")
+    # 解析 API 密钥（支持多源 fallback，使用 config_defaults 中的环境变量名常量）
+    sf_key = os.getenv(D.ENV_SILICONFLOW_API_KEY, "")
+    llm_key = os.getenv(D.ENV_LLM_API_KEY, "") or sf_key or os.getenv(D.ENV_DEEPSEEK_API_KEY, "")
+    tts_key = os.getenv(D.ENV_TTS_API_KEY, "") or sf_key or os.getenv(D.ENV_DASHSCOPE_API_KEY, "")
 
     config["api_keys"] = {
         "llm": llm_key,
         "tts": tts_key,
-        "deepseek": os.getenv("DEEPSEEK_API_KEY", ""),
-        "dashscope": os.getenv("DASHSCOPE_API_KEY", ""),
+        "deepseek": os.getenv(D.ENV_DEEPSEEK_API_KEY, ""),
+        "dashscope": os.getenv(D.ENV_DASHSCOPE_API_KEY, ""),
         "siliconflow": sf_key,
-        "github": os.getenv("GITHUB_TOKEN", ""),
+        "github": os.getenv(D.ENV_GITHUB_TOKEN, ""),
     }
 
-    # 注入播客元信息
+    # 注入播客元信息（使用 config_defaults 中的常量）
     config["podcast_meta"] = {
-        "title": os.getenv("PODCAST_TITLE", "GitHub 前沿观察"),
-        "author": os.getenv("PODCAST_AUTHOR", "Anonymous"),
-        "email": os.getenv("PODCAST_EMAIL", ""),
-        "site_url": os.getenv("PODCAST_SITE_URL", ""),
-        "media_base_url": os.getenv("PODCAST_MEDIA_BASE_URL", ""),
+        "title": os.getenv(D.ENV_PODCAST_TITLE, D.PODCAST_TITLE),
+        "author": os.getenv(D.ENV_PODCAST_AUTHOR, D.PODCAST_AUTHOR),
+        "email": os.getenv(D.ENV_PODCAST_EMAIL, ""),
+        "site_url": os.getenv(D.ENV_PODCAST_SITE_URL, ""),
+        "media_base_url": os.getenv(D.ENV_PODCAST_MEDIA_BASE_URL, ""),
     }
 
     config["project_root"] = str(project_root)

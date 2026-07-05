@@ -1,6 +1,6 @@
 // ════════════════════════════════════════
 // constants.js — 全局常量定义
-// 统一管理 API 端点、路由路径、轮询间隔等常量
+// 统一管理 API 端点、轮询间隔等常量
 // ════════════════════════════════════════
 
 /** API 端点路径 */
@@ -20,14 +20,8 @@ export const API = {
   SEARCH:           '/api/search',
 };
 
-/** 前端路由路径 */
-export const ROUTES = {
-  DASHBOARD: '/',
-  EPISODES:  '/episodes',
-  ANALYSIS:  '/analysis',
-  CONFIG:    '/config',
-  SEARCH:    '/search',
-};
+// 注意：前端路由路径统一定义在 router.js 的 ROUTES 对象中，
+// 此处不再重复定义，避免多处维护导致不一致。
 
 /** 轮询间隔（毫秒） */
 export const POLL_INTERVAL = 1500;

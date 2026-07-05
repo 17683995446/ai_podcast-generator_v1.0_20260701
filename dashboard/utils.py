@@ -1,6 +1,7 @@
 """API 响应标准化帮助函数。
 
 统一所有路由的 JSON 响应格式，避免散落的 jsonify + 手动构造。
+Stage 4: 移除未使用的 json_or_empty() 死代码
 """
 from __future__ import annotations
 
@@ -29,10 +30,3 @@ def json_error(message: str, status: int = 400, **extra):
     payload = {"ok": False, "error": message}
     payload.update(extra)
     return jsonify(payload), status
-
-
-def json_or_empty(data: dict | list | None):
-    """返回数据或空容器，避免 None 导致前端崩溃。"""
-    if data is None:
-        return jsonify([]) if isinstance(data, list) else jsonify({})
-    return jsonify(data)

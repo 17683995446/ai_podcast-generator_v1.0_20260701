@@ -3,6 +3,7 @@
 // ════════════════════════════════════════
 import { api } from '../api.js';
 import { updateStatusBadge } from '../utils.js';
+import { animateCount } from '../utils/count-animation.js';
 
 // 缓存上一次统计数据用于趋势对比
 let _lastStats = null;
@@ -19,11 +20,40 @@ export async function loadStats() {
       size: _computeTrend(s.total_size_mb, _lastStats?.total_size_mb),
     };
 
-    document.getElementById('statEpisodes').textContent = s.episodes;
-    _setStatValue('statDuration', s.total_duration_min);
-    document.getElementById('statChars').textContent = s.total_chars.toLocaleString();
-    _setStatValue('statSize', s.total_size_mb);
+    // 使用计数动画显示统计数据
+    const epEl = document.getElementById('statEpisodes');
+    if (epEl && !_lastStats) {
+      animateCount(epEl, s.episodes, 800);
+    } else if (epEl) {
+      epEl.textContent = s.episodes;
+    }
 
+    const durEl = document.getElementById('statDuration');
+    if (durEl) {
+      const unit = durEl.querySelector('.stat-unit');
+      if (unit) {
+        durEl.textContent = s.total_duration_min;
+        durEl.appendChild(unit);
+      } else {
+        durEl.textContent = s.total_duration_min;
+      }
+    }
+
+    const charsEl = document.getElementById('statChars');
+    if (charsEl && !_lastStats) {
+      animateCount(charsEl, s.total_chars, 1000, '', '', 0);
+      // toLocaleString 格式化
+      setTimeout(() => { charsEl.textContent = s.total_chars.toLocaleString(); }, 1050);
+    } else if (charsEl) {
+      charsEl.textContent = s.total_chars.toLocaleString();
+    }
+
+    const sizeEl = document.getElementById('statSize');
+    if (sizeEl) {
+      const unit = sizeEl.querySelector('.stat-unit');
+      sizeEl.textContent = s.total_size_mb;
+      if (unit) sizeEl.appendChild(unit);
+    }
     // 更新趋势指示器（如果 DOM 中存在）
     _updateTrend('statEpisodesTrend', trends.episodes);
     _updateTrend('statDurationTrend', trends.duration);
@@ -62,13 +92,4 @@ function _updateTrend(elId, trend) {
   if (!el) return;
   el.className = `stat-trend ${trend.dir}`;
   el.textContent = trend.text;
-}
-
-// 设置统计值，保留 .stat-unit 子元素
-function _setStatValue(id, value) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const unit = el.querySelector('.stat-unit');
-  el.textContent = value;
-  if (unit) el.appendChild(unit);
 }

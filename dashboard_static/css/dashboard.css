@@ -40,3 +40,300 @@
   .grid-main { grid-template-columns: 1fr; }
   .log-card .log-box { min-height: 200px; }
 }
+
+/* ════════════════════════════════════════
+   进度步骤指示器（流水线条）
+   ════════════════════════════════════════ */
+.pipeline-bar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--sp-4) var(--sp-5);
+  margin-top: var(--sp-4);
+  position: relative;
+  overflow: hidden;
+}
+.pipeline-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.pipeline-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.pipeline-status {
+  font-size: 13px;
+  color: var(--accent-light);
+  font-weight: 500;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 4px 0;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.step-dot {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition: all var(--transition);
+  position: relative;
+  z-index: 1;
+}
+.step.sub .step-dot {
+  width: 22px; height: 22px;
+  font-size: 8px;
+  border-width: 2px;
+}
+.step-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  transition: color var(--transition);
+}
+.step.sub .step-label { font-size: 10px; opacity: 0.8; }
+.step-line {
+  flex: 1;
+  min-width: 14px;
+  height: 2px;
+  background: var(--border);
+  transition: background var(--transition);
+  border-radius: 1px;
+  margin-top: -17px;
+}
+.step.sub + .step-line,
+.step.sub ~ .step-line { min-width: 10px; }
+/* 激活状态 */
+.step.active .step-dot {
+  background: var(--grad-accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 14px var(--accent-glow);
+  animation: step-pulse 2s ease-in-out infinite;
+}
+@keyframes step-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--accent-glow); }
+  50% { box-shadow: 0 0 20px var(--accent-glow); }
+}
+.step.active .step-label { color: var(--accent-light); font-weight: 600; }
+.step-line.active { background: var(--grad-accent); }
+/* 完成状态 */
+.step.done .step-dot {
+  background: var(--grad-green);
+  border-color: var(--green);
+  color: #fff;
+  box-shadow: 0 0 6px rgba(0, 217, 163, 0.3);
+}
+.step.done .step-label { color: var(--green); }
+
+/* ── 进度详情条 ── */
+.progress-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--sp-3);
+  padding: 0 4px;
+}
+.progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-2);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--grad-accent);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.progress-bar-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.progress-percent {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-light);
+  flex-shrink: 0;
+}
+.progress-stage {
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 高级选项折叠 ── */
+.advanced-toggle { margin-top: var(--sp-2); }
+.advanced-toggle summary {
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all var(--transition);
+  user-select: none;
+  display: inline-block;
+}
+.advanced-toggle summary:hover {
+  color: var(--text);
+  background: var(--card-hover);
+}
+.advanced-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0 0;
+}
+
+/* ── 来源/风格选项卡 ── */
+.source-tabs, .style-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.source-tab, .style-tab {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.source-tab:hover, .style-tab:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.source-tab.active, .style-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-light);
+  box-shadow: 0 2px 6px var(--accent-glow);
+}
+.source-input { margin-top: var(--sp-3); }
+
+/* ── 文本输入框 ── */
+.text-input {
+  width: 100%;
+  padding: 10px 13px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: all var(--transition);
+}
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.text-input::placeholder { color: var(--text-mute); }
+
+/* ════════════════════════════════════════
+   Dashboard 生成区域
+   ════════════════════════════════════════ */
+.gen-card {
+  background: var(--grad-card), var(--card);
+  display: flex;
+  flex-direction: column;
+}
+.gen-card-header {
+  margin-bottom: var(--sp-4);
+}
+.gen-card-header .section-label { margin-bottom: 4px; }
+.gen-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.config-group {
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--border);
+}
+.config-group:first-of-type { border-top: none; padding-top: 0; }
+.config-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: var(--sp-2);
+  letter-spacing: 0.3px;
+}
+.longform-toggle {
+  margin-top: var(--sp-3);
+  display: inline-flex;
+}
+.gen-action-section {
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--border);
+}
+.gen-action-section.secondary { padding-top: var(--sp-4); }
+.gen-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--sp-2);
+}
+.shortcut-hint {
+  font-size: 11px;
+  color: var(--text-mute);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.batch-controls {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.batch-presets {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.batch-unit {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-left: -2px;
+}
+.log-card {
+  background: var(--grad-card), var(--card);
+  display: flex;
+  flex-direction: column;
+}

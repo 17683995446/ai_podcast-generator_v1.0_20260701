@@ -7,6 +7,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify
 
 from ..config import ANALYSES_DIR, SCRIPTS_DIR, load_history
+from ..utils import json_error
 
 episodes_bp = Blueprint("episodes", __name__)
 
@@ -35,7 +36,7 @@ def get_script(ep_num: int):
             ep_title = ep.get("title")
             break
     else:
-        return jsonify({"error": "期数不存在"}), 404
+        return json_error("期数不存在", 404)
 
     # 按创建时间倒序遍历脚本文件
     scripts = sorted(SCRIPTS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -50,7 +51,7 @@ def get_script(ep_num: int):
         # 脚本不含 episode_number 字段时，回退到标题匹配
         if "episode_number" not in data and ep_title and data.get("title") == ep_title:
             return jsonify(data)
-    return jsonify({"error": "脚本文件未找到"}), 404
+    return json_error("脚本文件未找到", 404)
 
 
 @episodes_bp.route("/episode/<int:ep_num>/analysis")
@@ -63,11 +64,11 @@ def get_analysis(ep_num: int):
             ep = e
             break
     if not ep:
-        return jsonify({"error": "期数不存在"}), 404
+        return json_error("期数不存在", 404)
 
     # 从 output/analyses/ 目录查找匹配的分析文件
     if not ANALYSES_DIR.exists():
-        return jsonify({"error": "无分析数据"}), 404
+        return json_error("无分析数据", 404)
 
     # 优先按 episode_number 匹配，回退到 title 匹配
     for f in sorted(ANALYSES_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -85,4 +86,4 @@ def get_analysis(ep_num: int):
                 return jsonify(data)
         except (json.JSONDecodeError, ValueError):
             continue
-    return jsonify({"error": "分析数据未找到"}), 404
+    return json_error("分析数据未找到", 404)

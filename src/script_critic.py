@@ -4,19 +4,21 @@ PodAgent 的 Host-Guest-Writer 系统中引入了 Critic 角色，用于对 Writ
 脚本进行质量把关；低分时触发 Writer 重新生成。PoDEval 则提出了一套面向播客
 对话的多维度评估框架。本模块将二者结合：
 
-- 复用 ScriptGenerator 的 OpenAI 兼容客户端模式（SiliconFlow Qwen3.5）。
+- 使用 instructor + Pydantic 实现结构化输出，替代手写 JSON 容错解析。
 - 对脚本进行 5 维度评分：信息密度 / 连贯性 / 说话人多样性 / 事实性 / 吸引力。
 - 评审失败时优雅降级，返回默认通过结果，避免阻塞主生成流程。
 """
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
-from openai import OpenAI
-
+from .llm_helper import LLMClientMixin
+from .llm_models import CriticResultLLM
 from .models import GitHubRepo, PodcastScript
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # 评审系统提示词（借鉴 PoDEval 多维度评估框架）
@@ -36,38 +38,15 @@ CRITIC_SYSTEM_PROMPT = """你是一位严格的播客脚本质量评审专家。
 # 评审通过的分数阈值（>= 该值视为通过）
 PASS_THRESHOLD = 7.0
 
-# 评审维度键名
-_DIMENSION_KEYS = (
-    "info_density",
-    "coherence",
-    "speaker_diversity",
-    "factual_grounding",
-    "engagement",
-)
 
-
-class ScriptCritic:
+class ScriptCritic(LLMClientMixin):
     """播客脚本评审智能体（借鉴 PodAgent Critic + PoDEval 评估框架）。
 
     对生成的脚本进行多维度质量评估，低分触发 Writer 重新生成。
     """
 
     def __init__(self, config: dict):
-        # 与 ScriptGenerator 相同的 OpenAI 客户端初始化模式
-        self.cfg = config["llm"]
-        # 优先使用通用 LLM key（与 ScriptGenerator 一致）
-        self.api_key = config["api_keys"].get("llm", "") or config["api_keys"].get("deepseek", "")
-        # 是否需要关闭 thinking 模式（SiliconFlow Qwen3.5 系列）
-        self.enable_thinking = self.cfg.get("enable_thinking", None)
-
-        if not self.api_key:
-            print("[critic] 警告：未配置 LLM API Key，将使用 mock 评审")
-
-        self.client = OpenAI(
-            api_key=self.api_key or "mock-key",
-            base_url=self.cfg["base_url"],
-            timeout=self.cfg.get("timeout", 120),
-        )
+        self._init_llm(config)
 
     def evaluate(self, script: PodcastScript, repos: list[GitHubRepo]) -> dict:
         """评估脚本质量，返回包含 overall_score/dimensions/feedback/passed 的字典。
@@ -94,48 +73,34 @@ class ScriptCritic:
             }
 
         user_content = self._build_eval_content(script, repos)
-
-        # 构建请求参数：JSON 模式、低温（评审需稳定）、token 上限 800
-        kwargs: dict[str, Any] = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": CRITIC_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 800,
-            "response_format": {"type": "json_object"},
-        }
-
-        # SiliconFlow Qwen3.5 需关闭 thinking 模式
-        if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-            print("[critic] 已关闭 thinking 模式（enable_thinking=false）")
-
-        print(f"[critic] 调用 {self.cfg['model']} 评审脚本，输入 {len(user_content)} 字符...")
+        logger.info(f"调用 {self.meta['model']} 评审脚本，输入 {len(user_content)} 字符...")
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
-            raw = response.choices[0].message.content or ""
-            result = self._parse_eval_result(raw)
-            print(f"[critic] 评审完成：总分 {result.get('overall_score', 0)}/10")
-            return result
+            result = self.client.chat.completions.create(
+                response_model=CriticResultLLM,
+                messages=[
+                    {"role": "system", "content": CRITIC_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.2,
+                max_tokens=800,
+                **self.build_llm_kwargs(),
+            )
+            # 转换 Pydantic 模型为 dict（保持与旧 API 兼容）
+            dims = {k: int(v) for k, v in result.dimensions.items()}
+            passed = result.passed
+            if passed is None:
+                passed = result.overall_score >= PASS_THRESHOLD
+            logger.info(f"评审完成：总分 {result.overall_score}/10")
+            return {
+                "overall_score": result.overall_score,
+                "dimensions": dims,
+                "feedback": result.feedback,
+                "passed": bool(passed),
+            }
         except Exception as e:
-            print(f"[critic] 评审 API 调用失败: {e}")
-            # 尝试不带 response_format 重试（某些模型不支持 JSON mode）
-            if "response_format" in str(e).lower() or "json" in str(e).lower():
-                print("[critic] 尝试不带 JSON mode 重试...")
-                kwargs.pop("response_format", None)
-                if self.enable_thinking is False:
-                    kwargs["extra_body"] = {"enable_thinking": False}
-                try:
-                    response = self.client.chat.completions.create(**kwargs)
-                    raw = response.choices[0].message.content or ""
-                    return self._parse_eval_result(raw)
-                except Exception as e2:
-                    print(f"[critic] 重试失败: {e2}")
+            logger.error(f"评审失败: {e}")
             # 评审失败时返回默认通过结果（分数 0、空反馈），避免阻塞生成流程
-            print("[critic] 评审失败，返回默认通过结果")
             return {
                 "overall_score": 0,
                 "dimensions": {},
@@ -192,51 +157,3 @@ class ScriptCritic:
         parts.append("请基于以上信息严格评估脚本质量，按维度给出 1-10 的整数评分，并给出具体改进建议。")
         parts.append("严格输出 JSON 格式，不要输出任何 JSON 之外的文字。")
         return "\n".join(parts)
-
-    def _parse_eval_result(self, raw: str) -> dict:
-        """解析 LLM 返回的评审 JSON（容错处理）。"""
-        raw = raw.strip()
-        # 容错：去除 ```json 代码块包裹
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-        # 尝试提取第一个 JSON 对象
-        if not raw.startswith("{"):
-            match = re.search(r"\{[\s\S]*\}", raw)
-            if match:
-                raw = match.group(0)
-        data = json.loads(raw)
-
-        # 解析总分（兼容整数/浮点/字符串）
-        overall_score = data.get("overall_score", 0)
-        try:
-            overall_score = float(overall_score)
-        except (TypeError, ValueError):
-            overall_score = 0.0
-
-        # 解析各维度评分
-        dimensions = data.get("dimensions", {}) or {}
-        parsed_dims: dict[str, int] = {}
-        for key in _DIMENSION_KEYS:
-            val = dimensions.get(key, 0)
-            try:
-                parsed_dims[key] = int(float(val))
-            except (TypeError, ValueError):
-                parsed_dims[key] = 0
-
-        # 解析反馈
-        feedback = data.get("feedback", "") or ""
-
-        # 解析是否通过：若模型未给出，则按总分 >= 阈值判定
-        passed = data.get("passed", None)
-        if passed is None:
-            passed = overall_score >= PASS_THRESHOLD
-        elif isinstance(passed, str):
-            passed = passed.strip().lower() in ("true", "1", "yes", "是")
-
-        return {
-            "overall_score": overall_score,
-            "dimensions": parsed_dims,
-            "feedback": feedback,
-            "passed": bool(passed),
-        }

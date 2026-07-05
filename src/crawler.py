@@ -2,6 +2,7 @@
 
 使用 Jina Reader（https://r.jina.ai）免费云服务，自动去除网页噪音，
 输出 LLM 友好的 Markdown。失败时回退到 GitHub raw README。
+GitHub API 调用（README / topics）使用 PyGithub 替代手写 REST 请求。
 """
 from __future__ import annotations
 
@@ -9,8 +10,13 @@ import re
 from typing import Any
 
 import requests
+from github import Github, GithubException
 
 from .models import GitHubRepo
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ReadmeCrawler:
@@ -22,10 +28,19 @@ class ReadmeCrawler:
         self.max_chars = self.cfg.get("max_readme_chars", 8000)
         self.timeout = self.cfg.get("timeout", 30)
         self.github_token = config["api_keys"].get("github", "")
+
+        # requests.Session 仍用于 Jina Reader 调用（非 GitHub API）
         self._session = requests.Session()
         if self.github_token:
             self._session.headers["Authorization"] = f"token {self.github_token}"
         self._session.headers["User-Agent"] = "github-podcast-tool/0.1"
+
+        # PyGithub 客户端（用于 GitHub API 调用：README / topics）
+        self._gh = (
+            Github(self.github_token)
+            if self.github_token
+            else Github()
+        )
 
     def fetch_readme(self, repo: GitHubRepo) -> str:
         """抓取仓库 README，写入 repo.readme_markdown 并返回。
@@ -52,7 +67,7 @@ class ReadmeCrawler:
     def fetch_all(self, repos: list[GitHubRepo]) -> None:
         """批量抓取多个仓库的 README。"""
         for repo in repos:
-            print(f"[crawler] 抓取 README: {repo.name}")
+            logger.info(f"抓取 README: {repo.name}")
             self.fetch_readme(repo)
 
     # ------------------------------------------------------------------
@@ -63,9 +78,9 @@ class ReadmeCrawler:
             resp = self._session.get(url, timeout=self.timeout)
             if resp.status_code == 200:
                 return resp.text
-            print(f"[crawler] Jina Reader 返回 {resp.status_code}")
+            logger.warning(f"Jina Reader 返回 {resp.status_code}")
         except requests.RequestException as e:
-            print(f"[crawler] Jina Reader 请求失败: {e}")
+            logger.error(f"Jina Reader 请求失败: {e}")
         return ""
 
     def _fetch_via_github_raw(self, repo: GitHubRepo) -> str:
@@ -88,15 +103,17 @@ class ReadmeCrawler:
         return self._fetch_via_github_api(repo)
 
     def _fetch_via_github_api(self, repo: GitHubRepo) -> str:
-        """通过 GitHub API contents 接口获取 README。"""
-        url = f"https://api.github.com/repos/{repo.name}/readme"
-        headers = {"Accept": "application/vnd.github.raw"}
+        """通过 PyGithub 获取 README（GitHub API contents 接口）。"""
         try:
-            resp = self._session.get(url, headers=headers, timeout=self.timeout)
-            if resp.status_code == 200:
-                return resp.text
-        except requests.RequestException as e:
-            print(f"[crawler] GitHub API 失败: {e}")
+            gh_repo = self._gh.get_repo(repo.name)
+            readme = gh_repo.get_readme()
+            if readme.encoding == "base64":
+                return readme.decoded_content.decode("utf-8", errors="replace")
+            return readme.content or ""
+        except GithubException as e:
+            logger.error(f"GitHub API 失败: {e}")
+        except Exception as e:
+            logger.error(f"GitHub API 失败: {e}")
         return ""
 
     # ------------------------------------------------------------------
@@ -155,22 +172,16 @@ class ReadmeCrawler:
 
 
 def enrich_repo_topics(repo: GitHubRepo, github_token: str = "", mock_mode: bool = False) -> None:
-    """通过 GitHub API 补充仓库的 topics 信息（可选）。"""
+    """通过 PyGithub 补充仓库的 topics 信息（可选）。"""
     if mock_mode:
         return
     if repo.topics:
         return
-    headers = {"Accept": "application/vnd.github+json"}
-    if github_token:
-        headers["Authorization"] = f"token {github_token}"
     try:
-        resp = requests.get(
-            f"https://api.github.com/repos/{repo.name}/topics",
-            headers=headers,
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            names = resp.json().get("names", [])
-            repo.topics = names
-    except requests.RequestException:
+        gh = Github(github_token) if github_token else Github()
+        gh_repo = gh.get_repo(repo.name)
+        repo.topics = gh_repo.get_topics()
+    except GithubException:
         pass
+    except Exception as e:
+        logger.warning("抓取失败: %s", e)

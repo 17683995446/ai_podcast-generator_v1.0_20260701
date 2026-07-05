@@ -2,11 +2,45 @@
    layout.css — 布局：header、container、grid、响应式
    ════════════════════════════════════════ */
 
+/* ── 无障碍工具类 ── */
+/* 屏幕阅读器专用：视觉隐藏但屏幕阅读器可读 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 跳到主内容链接：键盘聚焦时显示 */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  z-index: 1000;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius-sm) 0;
+  transition: top var(--transition);
+}
+.skip-link:focus {
+  top: 0;
+}
+
 /* ── 导航栏 ── */
 .nav-bar {
   background: var(--card-glass);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--sp-6);
+  padding-top: env(safe-area-inset-top, 0px);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -18,10 +52,14 @@
   height: 60px;
   box-shadow: 0 1px 12px var(--nav-shadow);
 }
+/* WebView 中 backdrop-filter 可能失效，导航栏使用不透明背景 */
+html.in-webview .nav-bar {
+  background: var(--card);
+}
 .nav-left { display: flex; align-items: center; gap: var(--sp-6); }
 .nav-logo { display: flex; align-items: center; gap: var(--sp-3); text-decoration: none; }
 .nav-logo .logo-icon { /* 复用全局样式 */ }
-.nav-logo h1 {
+.nav-logo .nav-logo-text {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-bright);
@@ -119,7 +157,7 @@
 }
 
 /* ── 布局 ── */
-.container { max-width: 1200px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-7); }
+.container { max-width: 1200px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) calc(var(--sp-7) + var(--safe-bottom)); }
 .grid { display: grid; gap: var(--sp-4); }
 .grid-stats { grid-template-columns: repeat(4, 1fr); }
 .grid-main { grid-template-columns: 3fr 2fr; }
@@ -131,8 +169,8 @@
 }
 @media (max-width: 600px) {
   .nav-left { gap: var(--sp-4); }
-  .nav-logo h1 { display: none; }
-  .container { padding: var(--sp-4) var(--sp-3) var(--sp-6); }
+  .nav-logo .nav-logo-text { display: none; }
+  .container { padding: var(--sp-4) var(--sp-3) calc(var(--sp-6) + var(--safe-bottom)); }
 }
 
 /* ── 区块标题 ── */

@@ -6,11 +6,14 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
+from .llm_helper import LLMClientMixin
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 _QA_SYSTEM_PROMPT = """你是一位技术博学的播客助手。用户会就某个 GitHub 项目提问，你需要基于提供的项目分析数据回答问题。
@@ -26,35 +29,21 @@ _QA_SYSTEM_PROMPT = """你是一位技术博学的播客助手。用户会就某
 直接输出回答文本，不要输出 JSON。回答控制在 200-500 字。"""
 
 
-class QAEngine:
+class QAEngine(LLMClientMixin):
     """交互式问答引擎。"""
 
     def __init__(self, config: dict[str, Any]):
-        self.cfg = config["llm"]
+        self._init_llm(config, raw=True)
         self.project_root = Path(config.get("project_root", "."))
-        self.api_key = (
-            config["api_keys"].get("llm", "")
-            or config["api_keys"].get("deepseek", "")
-        )
-        self.enable_thinking = self.cfg.get("enable_thinking", None)
-
-        if not self.api_key:
-            print("[qa] 警告：未配置 LLM API Key，将使用 mock 模式")
-
-        self.client = OpenAI(
-            api_key=self.api_key or "mock-key",
-            base_url=self.cfg["base_url"],
-            timeout=self.cfg.get("timeout", 60),
-        )
 
     def ask(self, question: str, analysis_data: dict, readme_excerpt: str = "") -> str:
         """回答用户关于项目的问题。
-        
+
         Args:
             question: 用户问题
             analysis_data: 项目分析数据（ProjectAnalysis.to_dict() 格式）
             readme_excerpt: README 摘要（可选，提供更多上下文）
-        
+
         Returns:
             回答文本
         """
@@ -65,28 +54,24 @@ class QAEngine:
         context = self._build_context(analysis_data, readme_excerpt)
         user_content = f"## 项目分析数据\n{context}\n\n## 用户问题\n{question}"
 
-        kwargs = {
-            "model": self.cfg["model"],
-            "messages": [
-                {"role": "system", "content": _QA_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.4,
-            "max_tokens": 800,
-        }
-        if self.enable_thinking is False:
-            kwargs["extra_body"] = {"enable_thinking": False}
-
         try:
-            response = self.client.chat.completions.create(**kwargs)
+            response = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": _QA_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.4,
+                max_tokens=800,
+                **self.build_llm_kwargs(),
+            )
             return response.choices[0].message.content or ""
         except Exception as e:
-            print(f"[qa] API 调用失败: {e}")
+            logger.error(f"API 调用失败: {e}")
             return f"抱歉，回答生成失败：{e}"
 
     def ask_by_episode(self, question: str, episode_number: int, repo_name: str = "") -> str:
         """基于已保存的节目分析数据回答问题。
-        
+
         Args:
             question: 用户问题
             episode_number: 节目编号
@@ -137,7 +122,7 @@ class QAEngine:
         analyses_dir = self.project_root / "output" / "analyses"
         if not analyses_dir.exists():
             return None
-        
+
         # Find the analysis file for this episode
         # Files are named: analysis_YYYYMMDD_HHMMSS.json or analysis_YYYYMMDD_HHMMSS_epNN.json
         candidates = sorted(analyses_dir.glob("analysis_*.json"), reverse=True)
@@ -154,7 +139,8 @@ class QAEngine:
                                 return a
                     # Return first if no specific repo
                     return analyses[0]
-            except Exception:
+            except Exception as e:
+                logger.warning("QA 解析失败: %s", e)
                 continue
         return None
 

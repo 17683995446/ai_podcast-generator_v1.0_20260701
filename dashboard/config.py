@@ -1,4 +1,8 @@
-"""路径常量与配置加载。"""
+"""路径常量与配置加载。
+
+Stage 5: load_env() 改用 python-dotenv 替代手写解析器，提升鲁棒性。
+PROJECT_ROOT 为 dashboard 包内的唯一定义点，其他模块统一从此导入。
+"""
 from __future__ import annotations
 
 import json
@@ -39,21 +43,26 @@ def load_config() -> dict:
 
 
 def load_env() -> dict:
-    """加载 .env 并脱敏。"""
+    """加载 .env 并脱敏。
+
+    Stage 5: 使用 python-dotenv 的 dotenv_values() 替代手写解析器，
+    正确处理引号、注释、export 前缀等边界情况。
+    """
+    from dotenv import dotenv_values
+
     env_path = PROJECT_ROOT / ".env"
+    if not env_path.exists():
+        return {}
+
+    raw = dotenv_values(env_path)
     data = {}
-    if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                k = k.strip()
-                # 去除首尾空白与成对引号
-                v = v.strip().strip('"').strip("'").strip()
-                if "KEY" in k or "TOKEN" in k:
-                    # 脱敏：统一掩码，不泄露任何片段
-                    v = "***已配置***" if v else "未设置"
-                else:
-                    v = v if v else "未设置"
-                data[k] = v
+    for k, v in raw.items():
+        if v is None:
+            v = ""
+        if "KEY" in k or "TOKEN" in k:
+            # 脱敏：统一掩码，不泄露任何片段
+            v = "***已配置***" if v else "未设置"
+        else:
+            v = v if v else "未设置"
+        data[k] = v
     return data

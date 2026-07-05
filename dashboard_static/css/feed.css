@@ -1,0 +1,762 @@
+/* ════════════════════════════════════════
+   feed.css — 抖音式知识卡片信息流
+   全屏滑动 · 右侧操作栏 · 波形动画
+   ════════════════════════════════════════ */
+
+/* ── 信息流模式：覆盖默认布局 ── */
+body.feed-mode {
+  overflow: hidden;
+  /* 导航栏改为浮动覆盖层，不占文档流空间 */
+}
+body.feed-mode #main-content {
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+}
+body.feed-mode .container {
+  padding: 0;
+  max-width: none;
+}
+
+/* 信息流模式下：导航栏变为完全透明浮动层（不占空间） */
+body.feed-mode .nav-bar {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: transparent !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.feed-mode .nav-logo .nav-logo-text,
+body.feed-mode .nav-link,
+body.feed-mode .theme-toggle-btn {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 0, 0, 0.3);
+}
+body.feed-mode .nav-link.active {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.15);
+}
+body.feed-mode .badge {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: transparent;
+}
+/* WebView 下也覆盖不透明背景 */
+html.in-webview.feed-mode .nav-bar,
+body.feed-mode .nav-bar {
+  background: transparent !important;
+}
+
+/* ── 信息流容器：真正全屏滚动捕捉 ── */
+.feed-container {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  position: relative;
+}
+.feed-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 单张知识卡片：真正全屏 ── */
+.feed-card {
+  height: 100vh;
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+
+/* 卡片背景图：全屏覆盖 + 暗色渐变叠层保证文字可读性 */
+.feed-card-bg {
+  position: absolute;
+  inset: 0;
+  background-image: var(--card-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+  transform: scale(1.05);
+  transition: transform 6s ease-out;
+}
+/* 当前激活卡片：背景缓慢放大（Ken Burns 效果） */
+.feed-card.active .feed-card-bg {
+  transform: scale(1.12);
+}
+
+/* 暗色渐变叠层：上浅下深，保证底部文字可读 */
+.feed-card-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(0, 0, 0, 0.35) 0%,
+    rgba(0, 0, 0, 0.15) 30%,
+    rgba(0, 0, 0, 0.5) 65%,
+    rgba(0, 0, 0, 0.88) 100%);
+  z-index: 1;
+}
+
+/* 顶部光晕装饰（保留但适配图片背景） */
+.feed-card-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background: radial-gradient(ellipse at top, var(--accent-soft) 0%, transparent 70%);
+  filter: blur(30px);
+  z-index: 1;
+}
+
+/* ── 卡片内容层 ── */
+.feed-card-content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: calc(54px + env(safe-area-inset-top, 0px)) 24px calc(80px + env(safe-area-inset-bottom, 0px)) 24px;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── 顶部：期数标签 ── */
+.feed-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: auto;
+  padding-top: 16px;
+}
+.feed-ep-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+.feed-ep-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── 中间：标题 + 描述 ── */
+.feed-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+.feed-card-title {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
+  margin: 0;
+}
+
+/* 仓库标签 */
+.feed-card-repos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.feed-repo-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* 统计信息 */
+.feed-card-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.feed-stat {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── 底部：波形 + 播放 ── */
+.feed-card-bottom {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 音频波形 */
+.feed-waveform {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+}
+.wave-bar {
+  flex: 1;
+  min-width: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 1px;
+  transition: background 0.2s;
+}
+/* 播放中的卡片波形动画 */
+.feed-card.active .feed-waveform.playing .wave-bar {
+  animation: wave-bounce 0.8s ease-in-out infinite alternate;
+}
+.feed-card.active .feed-waveform.playing .wave-bar:nth-child(odd) {
+  animation-delay: 0.1s;
+}
+.feed-card.active .feed-waveform.playing .wave-bar:nth-child(3n) {
+  animation-delay: 0.2s;
+}
+.feed-card.active .feed-waveform.playing .wave-bar:nth-child(5n) {
+  animation-delay: 0.3s;
+}
+@keyframes wave-bounce {
+  from { transform: scaleY(0.6); background: var(--accent-soft); }
+  to { transform: scaleY(1.2); background: var(--accent-light); }
+}
+
+/* ── 右侧操作栏（抖音风格） ── */
+.feed-action-bar {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 3;
+}
+.feed-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.feed-action-btn:hover {
+  transform: scale(1.1);
+}
+.feed-action-btn:active {
+  transform: scale(0.95);
+}
+.action-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: #fff;
+  transition: all 0.2s;
+}
+.action-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+/* 播放按钮特殊样式 */
+.feed-play-btn .action-icon {
+  background: var(--grad-accent);
+  border-color: var(--accent-light);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+.feed-play-btn.playing .action-icon {
+  background: var(--grad-green);
+  border-color: var(--green);
+  box-shadow: 0 0 20px var(--green-soft);
+  animation: feed-play-pulse 2s ease-in-out infinite;
+}
+@keyframes feed-play-pulse {
+  0%, 100% { box-shadow: 0 0 16px var(--green-soft); }
+  50% { box-shadow: 0 0 28px var(--green); }
+}
+
+/* ── 右侧进度指示器 ── */
+.feed-progress-dots {
+  position: fixed;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  max-height: 60vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.feed-progress-dots::-webkit-scrollbar {
+  display: none;
+}
+.feed-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  transition: all 0.3s;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.feed-dot.active {
+  height: 18px;
+  border-radius: 3px;
+  background: var(--accent-light);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ── 上滑提示 ── */
+.feed-swipe-hint {
+  position: fixed;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.5s;
+  animation: swipe-hint-bounce 2s ease-in-out infinite;
+}
+.swipe-icon {
+  font-size: 20px;
+  animation: swipe-arrow 1.5s ease-in-out infinite;
+}
+@keyframes swipe-arrow {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+@keyframes swipe-hint-bounce {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ── 骨架屏 ── */
+.feed-skeleton {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 40px;
+}
+.feed-skeleton .skeleton {
+  border-radius: 8px;
+}
+
+/* ── 空状态 ── */
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  text-align: center;
+}
+.feed-empty-icon {
+  font-size: 64px;
+  animation: float 3s ease-in-out infinite;
+}
+.feed-empty-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+.feed-empty-desc {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+/* ── 错误状态 ── */
+.feed-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-dim);
+}
+.feed-error .icon {
+  font-size: 48px;
+}
+
+/* ── 展开区域：脚本/分析 ── */
+.feed-expand-area {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(11, 13, 20, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow-y: auto;
+  padding: calc(54px + 20px) 20px 100px;
+  animation: feed-expand-in 0.3s ease-out;
+}
+@keyframes feed-expand-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.feed-expand-loading,
+.feed-expand-error {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+}
+
+/* 脚本内容 */
+.feed-script-content {
+  max-width: 640px;
+  margin: 0 auto;
+}
+.feed-script-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.feed-script-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 20px;
+}
+.feed-script-seg {
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+.feed-script-seg.host_b { border-left-color: var(--green); }
+.seg-speaker {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-light);
+  margin-bottom: 4px;
+}
+.seg-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+/* 分析内容 */
+.feed-analysis-content {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.feed-proj-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.feed-proj-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+.feed-proj-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.feed-proj-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.feed-tech-tag {
+  padding: 4px 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--accent-light);
+}
+
+/* ════════════════════════════════════════
+   响应式适配
+   ════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .feed-card-content {
+    padding: calc(54px + env(safe-area-inset-top, 0px)) 16px calc(80px + env(safe-area-inset-bottom, 0px)) 16px;
+  }
+  .feed-card-title {
+    font-size: 20px;
+  }
+  .feed-action-bar {
+    right: 8px;
+    gap: 14px;
+  }
+  .action-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+  .action-label {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 375px) {
+  .feed-card-title {
+    font-size: 17px;
+  }
+  .feed-repo-tag {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+  .feed-stat {
+    font-size: 11px;
+  }
+  .feed-action-bar {
+    gap: 10px;
+  }
+  .action-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+  .action-label {
+    display: none;
+  }
+  .feed-progress-dots {
+    display: none;
+  }
+}
+
+/* ════════════════════════════════════════
+   浮动生成按钮（右下角 FAB）
+   ════════════════════════════════════════ */
+.fab-generate {
+  position: fixed;
+  right: 20px;
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+  z-index: 100;
+}
+.fab-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--grad-accent);
+  border: none;
+  box-shadow: 0 4px 20px var(--accent-glow), 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-spring);
+  z-index: 100;
+}
+.fab-btn:hover {
+  transform: scale(1.1) rotate(90deg);
+  box-shadow: 0 6px 28px var(--accent-glow), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.fab-btn:active {
+  transform: scale(0.95);
+}
+.fab-btn.task-running {
+  background: var(--grad-orange);
+  animation: fab-spin 3s linear infinite;
+}
+@keyframes fab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ════════════════════════════════════════
+   生成面板抽屉（从底部滑入）
+   ════════════════════════════════════════ */
+.gen-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.gen-drawer-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.gen-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 85vh;
+  background: var(--bg-2);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+  z-index: 201;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.32, 1.5, 0.5, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.gen-drawer.open {
+  transform: translateY(0);
+}
+.gen-drawer-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  margin: 12px auto 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.gen-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.gen-drawer-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+.gen-drawer-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--card-hover);
+  border: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.gen-drawer-close:hover {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.gen-drawer-body {
+  overflow-y: auto;
+  padding: 16px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  flex: 1;
+}
+
+/* 抽屉内的统计条（精简版） */
+.drawer-stats-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.drawer-stat-item {
+  flex: 1;
+  text-align: center;
+}
+.drawer-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+}
+.drawer-stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* 移动端抽屉 */
+@media (max-width: 768px) {
+  .fab-generate {
+    right: 16px;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .fab-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 22px;
+  }
+}
+@media (max-width: 375px) {
+  .fab-generate {
+    right: 12px;
+  }
+  .fab-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 20px;
+  }
+  .drawer-stats-bar {
+    gap: 8px;
+    padding: 10px;
+  }
+  .drawer-stat-value {
+    font-size: 16px;
+  }
+}

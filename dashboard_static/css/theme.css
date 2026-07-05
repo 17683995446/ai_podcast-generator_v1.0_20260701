@@ -3,20 +3,22 @@
    ════════════════════════════════════════ */
 
 :root {
+  /* 告知浏览器使用深色配色方案（影响滚动条、表单控件等原生 UI） */
+  color-scheme: dark;
   /* ── 背景层次 ── */
   --bg: #0b0d14;
   --bg-2: #0f1117;
   --card: #161922;
   --card-hover: #1e2230;
   --card-glass: rgba(22, 25, 34, 0.7);
-  --border: #262a3a;
-  --border-light: #323848;
+  --border: #2d3346;
+  --border-light: #3a4156;
 
   /* ── 文字层次 ── */
   --text: #e4e6eb;
-  --text-dim: #9ca3b8;
+  --text-dim: #b0b8cc;
   --text-bright: #f0f1f5;
-  --text-mute: #6b7088;
+  --text-mute: #9095ab;
 
   /* ── 主色调 ── */
   --accent: #7c6ff0;
@@ -76,12 +78,40 @@
   --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-spring: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── 底部安全距离 ── */
+  /* 默认使用系统 safe-area-inset-bottom；WebView 中由 JS 追加额外偏移 */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* WebView 环境（如 TRAE App 内置浏览器）：
+   env(safe-area-inset-bottom) 通常返回 0，但 App 原生底栏仍会遮挡内容。
+   通过 JS 检测后添加 .in-webview 类，追加 72px 额外底部安全距离。
+   JS 还会通过 visualViewport API 动态测量实际底栏高度并覆盖此值。
+   同时将 --card-glass 重定义为不透明色，因为 WebView 中 backdrop-filter 常失效。 */
+html.in-webview {
+  --safe-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  --card-glass: var(--card);
+}
+
+/* 移动端基础安全距离：所有移动设备都保留充足底部空间，
+   即使 WebView 检测失败（UA 不含已知标记），也能避免原生底栏遮挡。
+   48px 覆盖大多数移动端浏览器底部工具栏高度。 */
+@media (max-width: 768px) {
+  :root:not(.in-webview) {
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 48px);
+  }
 }
 
 /* ════════════════════════════════════════
    浅色模式
+   — 显式 [data-theme="light"] 与系统偏好 prefers-color-scheme:light 共享同一组令牌
+   — 用选择器组消除重复定义（原三重复制 → 单一来源）
    ════════════════════════════════════════ */
-[data-theme="light"] {
+[data-theme="light"],
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+  color-scheme: light;
   --bg: #f4f5fa;
   --bg-2: #ffffff;
   --card: #ffffff;
@@ -91,13 +121,13 @@
   --border-light: #d0d4e0;
 
   --text: #2d3142;
-  --text-dim: #6b7184;
+  --text-dim: #585e74;
   --text-bright: #1a1d28;
-  --text-mute: #9da3b8;
+  --text-mute: #767d92;
 
   --accent: #6c5ce7;
   --accent-hover: #5b4dd6;
-  --accent-light: #5b4dd6;
+  --accent-light: #7c6ff0;
   --accent-soft: rgba(108, 92, 231, 0.08);
   --accent-glow: rgba(108, 92, 231, 0.18);
 
@@ -124,57 +154,32 @@
   --glow-secondary: 0.04;
   --nav-shadow: rgba(0, 0, 0, 0.06);
   --player-shadow: rgba(0, 0, 0, 0.12);
-}
-
-/* 系统偏好自动检测（用户未手动设置时生效） */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #f4f5fa;
-    --bg-2: #ffffff;
-    --card: #ffffff;
-    --card-hover: #f0f1f7;
-    --card-glass: rgba(255, 255, 255, 0.8);
-    --border: #e2e5ee;
-    --border-light: #d0d4e0;
-
-    --text: #2d3142;
-    --text-dim: #6b7184;
-    --text-bright: #1a1d28;
-    --text-mute: #9da3b8;
-
-    --accent: #6c5ce7;
-    --accent-hover: #5b4dd6;
-    --accent-light: #5b4dd6;
-    --accent-soft: rgba(108, 92, 231, 0.08);
-    --accent-glow: rgba(108, 92, 231, 0.18);
-
-    --green: #00a87f;
-    --green-soft: rgba(0, 168, 127, 0.1);
-    --red: #e84545;
-    --red-soft: rgba(232, 69, 69, 0.08);
-    --orange: #e8a23a;
-    --blue: #4998e8;
-    --blue-soft: rgba(73, 152, 232, 0.1);
-    --cyan: #0891b2;
-
-    --surface-code: #f8f9fc;
-    --surface-code-text: #5a6178;
-    --surface-code-glow: #f0f1f7;
-
-    --grad-card: linear-gradient(145deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 241, 247, 0.6) 100%);
-
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-    --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
-
-    --glow-primary: 0.06;
-    --glow-secondary: 0.04;
-    --nav-shadow: rgba(0, 0, 0, 0.06);
-    --player-shadow: rgba(0, 0, 0, 0.12);
   }
 }
 
+/* ════════════════════════════════════════
+   WebView 覆盖（放在所有主题规则之后确保生效）
+   WebView 中 backdrop-filter 常失效，将 --card-glass 重定义为不透明色。
+   合并原两处 html.in-webview 定义为单一规则块。
+   ════════════════════════════════════════ */
+html.in-webview {
+  --safe-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  --card-glass: var(--card) !important;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* html 背景与 body 一致，防止移动端 100vh 溢出时底部透出白色 */
+html {
+  background: var(--bg);
+  /* 禁止过度滚动，防止滚动到页面边界时浏览器露出白色 overscroll 区域 */
+  overscroll-behavior: none;
+}
+
+/* 移动端使用 dvh（动态视口高度），避免 100vh 包含地址栏导致的溢出 */
+@supports (height: 100dvh) {
+  body { min-height: 100dvh; }
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", "PingFang SC", sans-serif;

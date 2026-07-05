@@ -18,6 +18,10 @@ import requests
 
 from .models import GitHubRepo
 
+from src.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class RepoDiscovery:
     """发现 GitHub 热门仓库。"""
@@ -54,7 +58,7 @@ class RepoDiscovery:
         if not repos:
             repos = self._fetch_from_github_search()
         if not repos:
-            print("[discovery] 所有真实数据源均不可用，自动回退到内置样例数据")
+            logger.warning("所有真实数据源均不可用，自动回退到内置样例数据")
             repos = self._fetch_mock()
 
         repos = self._apply_blacklist_filter(repos)
@@ -110,7 +114,7 @@ class RepoDiscovery:
                         trending_rank=i,
                     ))
             except Exception as e:
-                print(f"[discovery] 获取 {full_name} 失败: {e}")
+                logger.error(f"获取 {full_name} 失败: {e}")
 
         return self._apply_blacklist_filter(repos)
 
@@ -147,7 +151,7 @@ class RepoDiscovery:
                         trending_rank=i,
                     ))
         except Exception as e:
-            print(f"[discovery] 主题搜索失败: {e}")
+            logger.error(f"主题搜索失败: {e}")
 
         if not repos:
             repos = self._fetch_mock()[:count]
@@ -213,10 +217,10 @@ class RepoDiscovery:
         before = len(repos)
         filtered = [r for r in repos if r.name not in blacklist]
         if before > len(filtered):
-            print(f"[discovery] 过滤 {before - len(filtered)} 个近期已覆盖项目")
+            logger.info(f"过滤 {before - len(filtered)} 个近期已覆盖项目")
         # 如果全部被过滤掉，回退到原始列表（带警告）
         if not filtered and repos:
-            print("[discovery] 所有项目均在 30 天黑名单内，回退使用原始列表")
+            logger.warning("所有项目均在 30 天黑名单内，回退使用原始列表")
             return repos
         return filtered
 
@@ -228,8 +232,8 @@ class RepoDiscovery:
         if not repo_names:
             return
         self._update_blacklist(repo_names)
-        print(
-            f"[discovery] 已将 {len(repo_names)} 个项目加入 30 天黑名单："
+        logger.info(
+            f"已将 {len(repo_names)} 个项目加入 30 天黑名单："
             f"{', '.join(repo_names)}"
         )
 
@@ -251,7 +255,7 @@ class RepoDiscovery:
             resp = self._session.get(url, timeout=30)
             resp.raise_for_status()
         except requests.RequestException as e:
-            print(f"[discovery] RSSHub 请求失败: {e}")
+            logger.error(f"RSSHub 请求失败: {e}")
             return []
 
         feed = feedparser.parse(resp.content)
@@ -260,7 +264,7 @@ class RepoDiscovery:
             repo = self._parse_rsshub_entry(entry, i)
             if repo:
                 repos.append(repo)
-        print(f"[discovery] RSSHub 获取 {len(repos)} 个仓库")
+        logger.info(f"RSSHub 获取 {len(repos)} 个仓库")
         return repos
 
     @staticmethod
@@ -320,7 +324,7 @@ class RepoDiscovery:
             resp.raise_for_status()
             data = resp.json()
         except (requests.RequestException, ValueError) as e:
-            print(f"[discovery] Trending API 请求失败: {e}")
+            logger.error(f"Trending API 请求失败: {e}")
             return []
 
         repos: list[GitHubRepo] = []
@@ -340,7 +344,7 @@ class RepoDiscovery:
                     trending_rank=i,
                 )
             )
-        print(f"[discovery] Trending API 获取 {len(repos)} 个仓库")
+        logger.info(f"Trending API 获取 {len(repos)} 个仓库")
         return repos
 
     # ------------------------------------------------------------------
@@ -349,7 +353,7 @@ class RepoDiscovery:
     def _fetch_from_github_search(self) -> list[GitHubRepo]:
         """使用 GitHub Search API 按近期 Star 增长排序。"""
         if not self.github_token:
-            print("[discovery] 未配置 GITHUB_TOKEN，跳过 GitHub Search 备用源")
+            logger.warning("未配置 GITHUB_TOKEN，跳过 GitHub Search 备用源")
             return []
         # 搜索近 7 天内 created/pushed 的热门仓库
         from datetime import datetime, timedelta
@@ -366,7 +370,7 @@ class RepoDiscovery:
             resp.raise_for_status()
             items = resp.json().get("items", [])
         except (requests.RequestException, ValueError) as e:
-            print(f"[discovery] GitHub Search 失败: {e}")
+            logger.error(f"GitHub Search 失败: {e}")
             return []
 
         repos: list[GitHubRepo] = []
@@ -382,7 +386,7 @@ class RepoDiscovery:
                     trending_rank=i,
                 )
             )
-        print(f"[discovery] GitHub Search 获取 {len(repos)} 个仓库")
+        logger.info(f"GitHub Search 获取 {len(repos)} 个仓库")
         return repos
 
     # ------------------------------------------------------------------
@@ -463,13 +467,13 @@ class RepoDiscovery:
         repos = repos[:total_count]
         for i, repo in enumerate(repos, 1):
             repo.trending_rank = i
-        print(f"[discovery] 批量获取 {len(repos)} 个项目（需求 {total_count}）")
+        logger.info(f"批量获取 {len(repos)} 个项目（需求 {total_count}）")
         return repos
 
     def _fetch_batch_from_github_search(self, total_count: int) -> list[GitHubRepo]:
         """通过 GitHub Search API 分页获取大量项目。"""
         if not self.github_token:
-            print("[discovery] 未配置 GITHUB_TOKEN，批量搜索不可用")
+            logger.warning("未配置 GITHUB_TOKEN，批量搜索不可用")
             return []
 
         repos: list[GitHubRepo] = []
@@ -522,7 +526,7 @@ class RepoDiscovery:
                     page += 1
                 except (requests.RequestException, ValueError):
                     break
-        print(f"[discovery] GitHub Search 批量获取 {len(repos)} 个项目")
+        logger.info(f"GitHub Search 批量获取 {len(repos)} 个项目")
         return repos
 
     def _build_batch_queries(self) -> list[str]:
@@ -597,7 +601,7 @@ class RepoDiscovery:
                 topics=[tag, pfx, sfx],
                 trending_rank=len(repos) + 1,
             ))
-        print(f"[discovery] mock 批量生成 {len(repos)} 个项目")
+        logger.info(f"mock 批量生成 {len(repos)} 个项目")
         return repos
 
     # ------------------------------------------------------------------
@@ -617,5 +621,5 @@ class RepoDiscovery:
             if keywords and not any(kw in text for kw in keywords):
                 continue
             result.append(repo)
-        print(f"[discovery] 过滤后保留 {len(result)} 个仓库")
+        logger.info(f"过滤后保留 {len(result)} 个仓库")
         return result

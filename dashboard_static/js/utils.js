@@ -1,5 +1,8 @@
 // ════════════════════════════════════════
 // 工具函数（不依赖其他模块，避免循环依赖）
+// animateCount → utils/count-animation.js（直接导入）
+// throttle / debounce → utils/lodash-loader.js（直接导入）
+// Stage 2: 移除 barrel re-export，消除双重导入路径
 // ════════════════════════════════════════
 
 // HTML 转义，防止 XSS
@@ -23,11 +26,25 @@ export function pickTagColor(tag) {
 // 更新顶部状态徽章（运行中 / 空闲）
 export function updateStatusBadge(running) {
   const badge = document.getElementById('statusBadge');
+  if (!badge) return;
   if (running) {
     badge.className = 'badge badge-busy';
-    badge.innerHTML = '<span class="pulse" style="background:var(--orange)"></span> 运行中';
+    badge.innerHTML = '<span class="pulse" style="background:var(--orange)"></span> <span class="badge-text">运行中</span>';
   } else {
     badge.className = 'badge badge-online';
-    badge.innerHTML = '<span class="pulse"></span> 空闲';
+    badge.innerHTML = '<span class="pulse"></span> <span class="badge-text">空闲</span>';
   }
+}
+
+// ════════════════════════════════════════
+// UI 增强工具函数
+// ════════════════════════════════════════
+
+/**
+ * 自动滚动元素到底部
+ * @param {HTMLElement} el - 需要滚动的元素
+ */
+export function autoScrollToBottom(el) {
+  if (!el) return;
+  el.scrollTop = el.scrollHeight;
 }

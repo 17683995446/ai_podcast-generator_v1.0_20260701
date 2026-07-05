@@ -1,0 +1,62 @@
+/* ════════════════════════════════════════
+   config.css — 配置页面专用样式
+   ════════════════════════════════════════ */
+
+/* ── 配置面板 ── */
+.config-block { margin-bottom: var(--sp-4); }
+.config-block h4 { font-size: 13px; color: var(--accent-light); margin-bottom: var(--sp-2); }
+.config-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; align-items: baseline; gap: var(--sp-3); }
+.config-key { color: var(--text-dim); flex-shrink: 0; min-width: 100px; }
+.config-val { color: var(--text); font-family: monospace; text-align: left; word-break: break-all; overflow-wrap: break-word; }
+
+/* ── 配置页 RSS 链接 ── */
+.rss-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.rss-link-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.rss-link-item:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateX(4px);
+}
+.rss-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.rss-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.rss-tip {
+  margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--surface-code);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
